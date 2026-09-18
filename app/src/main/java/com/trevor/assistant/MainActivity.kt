@@ -1,8 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.trevor.assistant
 
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -23,30 +23,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeveloperMode
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,23 +51,23 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 private enum class Screen {
@@ -105,25 +99,78 @@ private object TrevorSettingsStore {
     private const val PREFS = "trevor_settings"
 
     fun load(context: Context): TrevorSettings {
+
         val prefs = context.getSharedPreferences(
             PREFS,
             Context.MODE_PRIVATE
         )
 
         return TrevorSettings(
-            aiEnabled = prefs.getBoolean("aiEnabled", true),
-            geminiEnabled = prefs.getBoolean("geminiEnabled", true),
-            orbEnabled = prefs.getBoolean("orbEnabled", true),
-            developerMode = prefs.getBoolean("developerMode", false),
-            debugMode = prefs.getBoolean("debugMode", false),
-            developerConsole = prefs.getBoolean("developerConsole", false),
-            animations = prefs.getBoolean("animations", true),
-            conciseResponses = prefs.getBoolean("conciseResponses", true),
-            technicalDetail = prefs.getBoolean("technicalDetail", true),
-            showStatusIndicators = prefs.getBoolean("showStatusIndicators", true),
-            showQuickActions = prefs.getBoolean("showQuickActions", true),
-            offlineFirst = prefs.getBoolean("offlineFirst", true),
-            secureStorage = prefs.getBoolean("secureStorage", true),
+            aiEnabled = prefs.getBoolean(
+                "aiEnabled",
+                true
+            ),
+
+            geminiEnabled = prefs.getBoolean(
+                "geminiEnabled",
+                true
+            ),
+
+            orbEnabled = prefs.getBoolean(
+                "orbEnabled",
+                true
+            ),
+
+            developerMode = prefs.getBoolean(
+                "developerMode",
+                false
+            ),
+
+            debugMode = prefs.getBoolean(
+                "debugMode",
+                false
+            ),
+
+            developerConsole = prefs.getBoolean(
+                "developerConsole",
+                false
+            ),
+
+            animations = prefs.getBoolean(
+                "animations",
+                true
+            ),
+
+            conciseResponses = prefs.getBoolean(
+                "conciseResponses",
+                true
+            ),
+
+            technicalDetail = prefs.getBoolean(
+                "technicalDetail",
+                true
+            ),
+
+            showStatusIndicators = prefs.getBoolean(
+                "showStatusIndicators",
+                true
+            ),
+
+            showQuickActions = prefs.getBoolean(
+                "showQuickActions",
+                true
+            ),
+
+            offlineFirst = prefs.getBoolean(
+                "offlineFirst",
+                true
+            ),
+
+            secureStorage = prefs.getBoolean(
+                "secureStorage",
+                true
+            ),
+
             localApiKeyEncryption = prefs.getBoolean(
                 "localApiKeyEncryption",
                 true
@@ -135,16 +182,41 @@ private object TrevorSettingsStore {
         context: Context,
         settings: TrevorSettings
     ) {
+
         context
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getSharedPreferences(
+                PREFS,
+                Context.MODE_PRIVATE
+            )
             .edit()
-            .putBoolean("aiEnabled", settings.aiEnabled)
-            .putBoolean("geminiEnabled", settings.geminiEnabled)
-            .putBoolean("orbEnabled", settings.orbEnabled)
-            .putBoolean("developerMode", settings.developerMode)
-            .putBoolean("debugMode", settings.debugMode)
-            .putBoolean("developerConsole", settings.developerConsole)
-            .putBoolean("animations", settings.animations)
+            .putBoolean(
+                "aiEnabled",
+                settings.aiEnabled
+            )
+            .putBoolean(
+                "geminiEnabled",
+                settings.geminiEnabled
+            )
+            .putBoolean(
+                "orbEnabled",
+                settings.orbEnabled
+            )
+            .putBoolean(
+                "developerMode",
+                settings.developerMode
+            )
+            .putBoolean(
+                "debugMode",
+                settings.debugMode
+            )
+            .putBoolean(
+                "developerConsole",
+                settings.developerConsole
+            )
+            .putBoolean(
+                "animations",
+                settings.animations
+            )
             .putBoolean(
                 "conciseResponses",
                 settings.conciseResponses
@@ -192,13 +264,17 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.GetContent()
         ) { uri ->
+
             selectedFileUri = uri
         }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
         setContent {
+
             TrevorApp(
                 context = this,
                 filePicker = {
@@ -209,13 +285,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun TrevorApp(
     context: Context,
     filePicker: () -> Unit
 ) {
+
     var screen by remember {
-        mutableStateOf(Screen.DASHBOARD)
+        mutableStateOf(
+            Screen.DASHBOARD
+        )
     }
 
     var settings by remember {
@@ -227,7 +306,9 @@ private fun TrevorApp(
     fun updateSettings(
         newSettings: TrevorSettings
     ) {
+
         settings = newSettings
+
         TrevorSettingsStore.save(
             context,
             newSettings
@@ -237,41 +318,58 @@ private fun TrevorApp(
     when (screen) {
 
         Screen.DASHBOARD -> {
+
             DashboardScreen(
+                context = context,
                 settings = settings,
+
                 onSettings = {
                     screen = Screen.SETTINGS
                 },
+
                 onDeveloper = {
                     screen = Screen.DEVELOPER
                 },
+
                 onFilePicker = filePicker
             )
         }
 
         Screen.SETTINGS -> {
+
             SettingsScreen(
                 settings = settings,
+
                 onBack = {
                     screen = Screen.DASHBOARD
                 },
+
                 onApiKey = {
                     screen = Screen.API_KEY
                 },
+
                 onDeveloper = {
                     screen = Screen.DEVELOPER
                 },
+
                 onChange = ::updateSettings,
+
                 onRestoreDefaults = {
-                    TrevorSettingsStore.defaults(context)
+
+                    TrevorSettingsStore.defaults(
+                        context
+                    )
+
                     settings = TrevorSettings()
                 }
             )
         }
 
         Screen.DEVELOPER -> {
+
             DeveloperScreen(
                 settings = settings,
+
                 onBack = {
                     screen = Screen.DASHBOARD
                 }
@@ -279,8 +377,10 @@ private fun TrevorApp(
         }
 
         Screen.API_KEY -> {
+
             ApiKeyScreen(
                 context = context,
+
                 onBack = {
                     screen = Screen.SETTINGS
                 }
@@ -289,13 +389,15 @@ private fun TrevorApp(
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun DashboardScreen(
+    context: Context,
     settings: TrevorSettings,
     onSettings: () -> Unit,
     onDeveloper: () -> Unit,
     onFilePicker: () -> Unit
 ) {
+
     var input by remember {
         mutableStateOf("")
     }
@@ -310,19 +412,23 @@ private fun DashboardScreen(
         mutableStateOf(false)
     }
 
-    val scope = remember {
-        CoroutineScope(Dispatchers.Main)
-    }
+    val scope = rememberCoroutineScope()
 
     fun sendCommand(
         command: String = input
     ) {
-        if (busy) return
+
+        if (busy) {
+            return
+        }
 
         val clean = command.trim()
 
         if (clean.isBlank()) {
-            response = "Please enter a command."
+
+            response =
+                "Please enter a command."
+
             return
         }
 
@@ -330,47 +436,67 @@ private fun DashboardScreen(
         response = "Processing..."
 
         val localResult =
-            TrevorLocalEngine.processCommand(clean)
+            TrevorLocalEngine.processCommand(
+                clean
+            )
 
         when (localResult) {
 
             is TrevorEngineResult.Answer -> {
-                response = localResult.text
+
+                response =
+                    localResult.text
+
                 busy = false
             }
 
             is TrevorEngineResult.Error -> {
-                response = localResult.message
+
+                response =
+                    localResult.message
+
                 busy = false
             }
 
             is TrevorEngineResult.NeedAI -> {
 
                 if (!settings.aiEnabled) {
+
                     response =
                         "AI is disabled. Enable AI in Settings."
+
                     busy = false
+
                     return
                 }
 
                 if (!settings.geminiEnabled) {
+
                     response =
                         "Gemini AI is disabled. Enable Gemini in Settings."
+
                     busy = false
+
                     return
                 }
+
+                val appContext =
+                    context.applicationContext
 
                 scope.launch {
 
                     val key =
                         SecureApiKeyStore.load(
-                            context = LocalContext.current
+                            appContext
                         )
 
                     if (key.isNullOrBlank()) {
+
                         response =
                             "Gemini API key is not configured.\nOpen Settings → Gemini API Key."
+
                         busy = false
+
                         return@launch
                     }
 
@@ -395,134 +521,197 @@ private fun DashboardScreen(
     }
 
     Scaffold(
+
         topBar = {
+
             TopAppBar(
+
                 title = {
+
                     Column {
+
                         Text(
                             text = "T.R.E.V.O.R",
-                            fontWeight = FontWeight.Bold
+                            fontWeight =
+                                FontWeight.Bold
                         )
 
-                        if (settings.showStatusIndicators) {
+                        if (
+                            settings.showStatusIndicators
+                        ) {
+
                             Text(
-                                text = if (busy) {
-                                    "THINKING"
-                                } else {
-                                    "ONLINE"
-                                },
+                                text =
+                                    if (busy) {
+                                        "THINKING"
+                                    } else {
+                                        "ONLINE"
+                                    },
                                 fontSize = 11.sp
                             )
                         }
                     }
                 },
+
                 actions = {
 
-                    IconButton(
-                        onClick = onDeveloper
+                    if (
+                        settings.developerMode ||
+                        settings.debugMode
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.DeveloperMode,
-                            contentDescription = "Developer Mode"
-                        )
+
+                        IconButton(
+                            onClick =
+                                onDeveloper
+                        ) {
+
+                            Icon(
+                                imageVector =
+                                    Icons.Filled.DeveloperMode,
+                                contentDescription =
+                                    "Developer Mode"
+                            )
+                        }
                     }
 
                     IconButton(
-                        onClick = onSettings
+                        onClick =
+                            onSettings
                     ) {
+
                         Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "Settings"
+                            imageVector =
+                                Icons.Filled.Settings,
+                            contentDescription =
+                                "Settings"
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor =
+                            MaterialTheme.colorScheme.surface
+                    )
             )
         }
+
     ) { padding ->
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+
+            horizontalAlignment =
+                Alignment.CenterHorizontally
         ) {
 
             if (settings.orbEnabled) {
+
                 TrevorOrb(
-                    modifier = Modifier
-                        .size(190.dp)
-                        .padding(8.dp)
+                    modifier =
+                        Modifier
+                            .size(190.dp)
+                            .padding(8.dp)
                 )
 
                 Spacer(
-                    modifier = Modifier.height(12.dp)
+                    modifier =
+                        Modifier.height(12.dp)
                 )
             }
 
             if (settings.showQuickActions) {
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+
+                    modifier =
+                        Modifier.fillMaxWidth(),
+
                     horizontalArrangement =
                         Arrangement.spacedBy(8.dp)
                 ) {
 
                     QuickButton(
-                        modifier = Modifier.weight(1f),
+                        modifier =
+                            Modifier.weight(1f),
                         text = "Calculate",
-                        icon = Icons.Filled.Calculate
+                        icon =
+                            Icons.Filled.Calculate
                     ) {
-                        input = "calculate "
+
+                        input =
+                            "calculate "
                     }
 
                     QuickButton(
-                        modifier = Modifier.weight(1f),
+                        modifier =
+                            Modifier.weight(1f),
                         text = "Define",
-                        icon = Icons.Filled.Info
+                        icon =
+                            Icons.Filled.Info
                     ) {
-                        input = "define "
+
+                        input =
+                            "define "
                     }
 
                     QuickButton(
-                        modifier = Modifier.weight(1f),
+                        modifier =
+                            Modifier.weight(1f),
                         text = "File",
-                        icon = Icons.Filled.AttachFile
+                        icon =
+                            Icons.Filled.AttachFile
                     ) {
+
                         onFilePicker()
                     }
                 }
 
                 Spacer(
-                    modifier = Modifier.height(12.dp)
+                    modifier =
+                        Modifier.height(12.dp)
                 )
             }
 
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                colors = CardDefaults.cardColors(
-                    containerColor =
-                        MaterialTheme.colorScheme.surfaceVariant
-                )
+
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            MaterialTheme
+                                .colorScheme
+                                .surfaceVariant
+                    )
             ) {
 
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
+
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
                 ) {
 
                     item {
+
                         Text(
                             text = "TREVOR",
-                            fontWeight = FontWeight.Bold,
+                            fontWeight =
+                                FontWeight.Bold,
                             color =
-                                MaterialTheme.colorScheme.primary
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary
                         )
 
                         Spacer(
@@ -539,40 +728,56 @@ private fun DashboardScreen(
             }
 
             Spacer(
-                modifier = Modifier.height(12.dp)
+                modifier =
+                    Modifier.height(12.dp)
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
                 verticalAlignment =
                     Alignment.CenterVertically
             ) {
 
                 OutlinedTextField(
+
                     value = input,
+
                     onValueChange = {
                         input = it
                     },
-                    modifier = Modifier.weight(1f),
+
+                    modifier =
+                        Modifier.weight(1f),
+
                     placeholder = {
                         Text("Ask TREVOR...")
                     },
+
                     singleLine = false
                 )
 
                 Spacer(
-                    modifier = Modifier.width(8.dp)
+                    modifier =
+                        Modifier.width(8.dp)
                 )
 
                 IconButton(
+
                     onClick = {
                         sendCommand()
                     },
+
                     enabled = !busy
                 ) {
+
                     Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = "Send"
+                        imageVector =
+                            Icons.Filled.Send,
+                        contentDescription =
+                            "Send"
                     )
                 }
             }
@@ -587,15 +792,21 @@ private fun buildPrompt(
 
     val responseStyle =
         if (settings.conciseResponses) {
+
             "Keep responses concise while still answering correctly."
+
         } else {
+
             "Give a reasonably detailed response."
         }
 
     val technicalStyle =
         if (settings.technicalDetail) {
+
             "Technical details are welcome when useful."
+
         } else {
+
             "Prefer simple explanations and avoid unnecessary technical detail."
         }
 
@@ -612,76 +823,91 @@ private fun buildPrompt(
     """.trimIndent()
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun QuickButton(
     modifier: Modifier,
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit
 ) {
+
     OutlinedButton(
+
         modifier = modifier,
+
         onClick = onClick
     ) {
+
         Icon(
             imageVector = icon,
             contentDescription = text
         )
 
         Spacer(
-            modifier = Modifier.width(4.dp)
+            modifier =
+                Modifier.width(4.dp)
         )
 
         Text(text)
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun TrevorOrb(
     modifier: Modifier = Modifier
 ) {
+
     Box(
+
         modifier = modifier,
-        contentAlignment = Alignment.Center
+
+        contentAlignment =
+            Alignment.Center
     ) {
 
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            Color(0xFFB8F3FF),
-                            Color(0xFF2196F3),
-                            Color(0xFF07152E)
+
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                Color(0xFFB8F3FF),
+                                Color(0xFF2196F3),
+                                Color(0xFF07152E)
+                            )
                         )
                     )
-                )
-                .border(
-                    width = 2.dp,
-                    color = Color(0xFF55D9FF),
-                    shape = CircleShape
-                )
+                    .border(
+                        width = 2.dp,
+                        color =
+                            Color(0xFF55D9FF),
+                        shape =
+                            CircleShape
+                    )
         )
 
         Box(
-            modifier = Modifier
-                .size(70.dp)
-                .clip(CircleShape)
-                .background(
-                    Color(0xFF8BE9FF)
-                )
-                .border(
-                    width = 2.dp,
-                    color = Color.White,
-                    shape = CircleShape
-                )
+
+            modifier =
+                Modifier
+                    .size(70.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Color(0xFF8BE9FF)
+                    )
+                    .border(
+                        width = 2.dp,
+                        color = Color.White,
+                        shape = CircleShape
+                    )
         )
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun SettingsScreen(
     settings: TrevorSettings,
     onBack: () -> Unit,
@@ -690,47 +916,65 @@ private fun SettingsScreen(
     onChange: (TrevorSettings) -> Unit,
     onRestoreDefaults: () -> Unit
 ) {
+
     Scaffold(
+
         topBar = {
+
             TopAppBar(
+
                 title = {
                     Text("Settings")
                 },
+
                 navigationIcon = {
+
                     IconButton(
-                        onClick = onBack
+                        onClick =
+                            onBack
                     ) {
+
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription =
+                                "Back"
                         )
                     }
                 }
             )
         }
+
     ) { padding ->
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+
             verticalArrangement =
                 Arrangement.spacedBy(8.dp)
         ) {
 
             item {
+
                 Text(
                     text = "AI ENGINE",
-                    fontWeight = FontWeight.Bold
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
             item {
+
                 SettingSwitch(
                     title = "AI Enabled",
-                    checked = settings.aiEnabled
+                    checked =
+                        settings.aiEnabled
                 ) {
+
                     onChange(
                         settings.copy(
                             aiEnabled = it
@@ -740,10 +984,13 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
                     title = "Gemini AI",
-                    checked = settings.geminiEnabled
+                    checked =
+                        settings.geminiEnabled
                 ) {
+
                     onChange(
                         settings.copy(
                             geminiEnabled = it
@@ -753,29 +1000,40 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingButton(
-                    title = "Gemini API Key",
-                    icon = Icons.Filled.SmartToy,
-                    onClick = onApiKey
+                    title =
+                        "Gemini API Key",
+                    icon =
+                        Icons.Filled.SmartToy,
+                    onClick =
+                        onApiKey
                 )
             }
 
             item {
-                Divider()
+                HorizontalDivider()
             }
 
             item {
+
                 Text(
-                    text = "ORBITAL CORE",
-                    fontWeight = FontWeight.Bold
+                    text =
+                        "ORBITAL CORE",
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Orb Enabled",
-                    checked = settings.orbEnabled
+                    title =
+                        "Orb Enabled",
+                    checked =
+                        settings.orbEnabled
                 ) {
+
                     onChange(
                         settings.copy(
                             orbEnabled = it
@@ -785,10 +1043,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Animations",
-                    checked = settings.animations
+                    title =
+                        "Animations",
+                    checked =
+                        settings.animations
                 ) {
+
                     onChange(
                         settings.copy(
                             animations = it
@@ -798,21 +1060,27 @@ private fun SettingsScreen(
             }
 
             item {
-                Divider()
+                HorizontalDivider()
             }
 
             item {
+
                 Text(
                     text = "DISPLAY",
-                    fontWeight = FontWeight.Bold
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Show Status Indicators",
-                    checked = settings.showStatusIndicators
+                    title =
+                        "Show Status Indicators",
+                    checked =
+                        settings.showStatusIndicators
                 ) {
+
                     onChange(
                         settings.copy(
                             showStatusIndicators = it
@@ -822,10 +1090,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Show Quick Actions",
-                    checked = settings.showQuickActions
+                    title =
+                        "Show Quick Actions",
+                    checked =
+                        settings.showQuickActions
                 ) {
+
                     onChange(
                         settings.copy(
                             showQuickActions = it
@@ -835,21 +1107,28 @@ private fun SettingsScreen(
             }
 
             item {
-                Divider()
+                HorizontalDivider()
             }
 
             item {
+
                 Text(
-                    text = "RESPONSES",
-                    fontWeight = FontWeight.Bold
+                    text =
+                        "RESPONSES",
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Concise Responses",
-                    checked = settings.conciseResponses
+                    title =
+                        "Concise Responses",
+                    checked =
+                        settings.conciseResponses
                 ) {
+
                     onChange(
                         settings.copy(
                             conciseResponses = it
@@ -859,10 +1138,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Technical Detail",
-                    checked = settings.technicalDetail
+                    title =
+                        "Technical Detail",
+                    checked =
+                        settings.technicalDetail
                 ) {
+
                     onChange(
                         settings.copy(
                             technicalDetail = it
@@ -872,21 +1155,28 @@ private fun SettingsScreen(
             }
 
             item {
-                Divider()
+                HorizontalDivider()
             }
 
             item {
+
                 Text(
-                    text = "DEVELOPER",
-                    fontWeight = FontWeight.Bold
+                    text =
+                        "DEVELOPER",
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Developer Mode",
-                    checked = settings.developerMode
+                    title =
+                        "Developer Mode",
+                    checked =
+                        settings.developerMode
                 ) {
+
                     val updated =
                         settings.copy(
                             developerMode = it
@@ -901,10 +1191,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Debug Mode",
-                    checked = settings.debugMode
+                    title =
+                        "Debug Mode",
+                    checked =
+                        settings.debugMode
                 ) {
+
                     val updated =
                         settings.copy(
                             debugMode = it
@@ -919,10 +1213,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Developer Console",
-                    checked = settings.developerConsole
+                    title =
+                        "Developer Console",
+                    checked =
+                        settings.developerConsole
                 ) {
+
                     onChange(
                         settings.copy(
                             developerConsole = it
@@ -932,21 +1230,28 @@ private fun SettingsScreen(
             }
 
             item {
-                Divider()
+                HorizontalDivider()
             }
 
             item {
+
                 Text(
-                    text = "STORAGE & NETWORK",
-                    fontWeight = FontWeight.Bold
+                    text =
+                        "STORAGE & NETWORK",
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Offline First",
-                    checked = settings.offlineFirst
+                    title =
+                        "Offline First",
+                    checked =
+                        settings.offlineFirst
                 ) {
+
                     onChange(
                         settings.copy(
                             offlineFirst = it
@@ -956,10 +1261,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Secure Storage",
-                    checked = settings.secureStorage
+                    title =
+                        "Secure Storage",
+                    checked =
+                        settings.secureStorage
                 ) {
+
                     onChange(
                         settings.copy(
                             secureStorage = it
@@ -969,10 +1278,14 @@ private fun SettingsScreen(
             }
 
             item {
+
                 SettingSwitch(
-                    title = "Local API Key Encryption",
-                    checked = settings.localApiKeyEncryption
+                    title =
+                        "Local API Key Encryption",
+                    checked =
+                        settings.localApiKeyEncryption
                 ) {
+
                     onChange(
                         settings.copy(
                             localApiKeyEncryption = it
@@ -982,135 +1295,178 @@ private fun SettingsScreen(
             }
 
             item {
+
                 Spacer(
-                    modifier = Modifier.height(8.dp)
+                    modifier =
+                        Modifier.height(8.dp)
                 )
 
                 Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onRestoreDefaults
+
+                    modifier =
+                        Modifier.fillMaxWidth(),
+
+                    onClick =
+                        onRestoreDefaults
                 ) {
+
                     Icon(
                         Icons.Filled.Refresh,
-                        contentDescription = null
+                        contentDescription =
+                            null
                     )
 
                     Spacer(
                         Modifier.width(8.dp)
                     )
 
-                    Text("Restore Defaults")
+                    Text(
+                        "Restore Defaults"
+                    )
                 }
             }
         }
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun SettingSwitch(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+
     Card(
-        modifier = Modifier.fillMaxWidth()
+
+        modifier =
+            Modifier.fillMaxWidth()
     ) {
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
 
             Text(
                 text = title,
-                modifier = Modifier.weight(1f)
+                modifier =
+                    Modifier.weight(1f)
             )
 
             Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange
+                checked =
+                    checked,
+                onCheckedChange =
+                    onCheckedChange
             )
         }
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun SettingButton(
     title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit
 ) {
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                onClick()
-            }
+
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onClick()
+                }
     ) {
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
 
             Icon(
-                imageVector = icon,
-                contentDescription = null
+                imageVector =
+                    icon,
+                contentDescription =
+                    null
             )
 
             Spacer(
-                modifier = Modifier.width(12.dp)
+                modifier =
+                    Modifier.width(12.dp)
             )
 
             Text(
                 text = title,
-                modifier = Modifier.weight(1f)
+                modifier =
+                    Modifier.weight(1f)
             )
         }
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun DeveloperScreen(
     settings: TrevorSettings,
     onBack: () -> Unit
 ) {
+
     Scaffold(
+
         topBar = {
+
             TopAppBar(
+
                 title = {
                     Text("Developer Mode")
                 },
+
                 navigationIcon = {
+
                     IconButton(
-                        onClick = onBack
+                        onClick =
+                            onBack
                     ) {
+
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription =
+                                "Back"
                         )
                     }
                 }
             )
         }
+
     ) { padding ->
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+
             verticalArrangement =
                 Arrangement.spacedBy(10.dp)
         ) {
 
             item {
+
                 DiagnosticCard(
                     "Application",
                     "TREVOR"
@@ -1118,6 +1474,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Package",
                     "com.trevor.assistant"
@@ -1125,6 +1482,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Version",
                     "0.0.2"
@@ -1132,6 +1490,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "AI Enabled",
                     settings.aiEnabled.toString()
@@ -1139,6 +1498,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Gemini Enabled",
                     settings.geminiEnabled.toString()
@@ -1146,6 +1506,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Orb Enabled",
                     settings.orbEnabled.toString()
@@ -1153,6 +1514,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Developer Mode",
                     settings.developerMode.toString()
@@ -1160,6 +1522,7 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Debug Mode",
                     settings.debugMode.toString()
@@ -1167,36 +1530,64 @@ private fun DeveloperScreen(
             }
 
             item {
+
                 DiagnosticCard(
                     "Secure Storage",
                     settings.secureStorage.toString()
+                )
+            }
+
+            item {
+
+                DiagnosticCard(
+                    "Offline First",
+                    settings.offlineFirst.toString()
+                )
+            }
+
+            item {
+
+                DiagnosticCard(
+                    "API Key Encryption",
+                    settings.localApiKeyEncryption.toString()
                 )
             }
         }
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun DiagnosticCard(
     name: String,
     value: String
 ) {
+
     Card(
-        modifier = Modifier.fillMaxWidth()
+
+        modifier =
+            Modifier.fillMaxWidth()
     ) {
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
 
             Text(
+
                 text = name,
-                modifier = Modifier.weight(1f),
-                fontWeight = FontWeight.Medium
+
+                modifier =
+                    Modifier.weight(1f),
+
+                fontWeight =
+                    FontWeight.Medium
             )
 
             Text(
@@ -1206,14 +1597,18 @@ private fun DiagnosticCard(
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun ApiKeyScreen(
     context: Context,
     onBack: () -> Unit
 ) {
+
     var apiKey by remember {
+
         mutableStateOf(
-            SecureApiKeyStore.load(context) ?: ""
+            SecureApiKeyStore.load(
+                context
+            ) ?: ""
         )
     }
 
@@ -1226,30 +1621,41 @@ private fun ApiKeyScreen(
     }
 
     Scaffold(
+
         topBar = {
+
             TopAppBar(
+
                 title = {
                     Text("Gemini API Key")
                 },
+
                 navigationIcon = {
+
                     IconButton(
-                        onClick = onBack
+                        onClick =
+                            onBack
                     ) {
+
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription =
+                                "Back"
                         )
                     }
                 }
             )
         }
+
     ) { padding ->
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
+
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
         ) {
 
             Text(
@@ -1258,110 +1664,152 @@ private fun ApiKeyScreen(
             )
 
             Spacer(
-                modifier = Modifier.height(16.dp)
+                modifier =
+                    Modifier.height(16.dp)
             )
 
             OutlinedTextField(
+
                 value = apiKey,
+
                 onValueChange = {
+
                     apiKey = it
                     message = ""
                 },
-                modifier = Modifier.fillMaxWidth(),
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
                 label = {
                     Text("Gemini API Key")
                 },
+
                 singleLine = true,
+
                 visualTransformation =
                     if (showKey) {
                         VisualTransformation.None
                     } else {
                         PasswordVisualTransformation()
                     },
+
                 trailingIcon = {
+
                     IconButton(
+
                         onClick = {
                             showKey = !showKey
                         }
+
                     ) {
+
                         Icon(
+
                             imageVector =
                                 if (showKey) {
                                     Icons.Filled.VisibilityOff
                                 } else {
                                     Icons.Filled.Visibility
                                 },
-                            contentDescription = "Show or hide key"
+
+                            contentDescription =
+                                "Show or hide key"
                         )
                     }
                 }
             )
 
             Spacer(
-                modifier = Modifier.height(12.dp)
+                modifier =
+                    Modifier.height(12.dp)
             )
 
             Button(
-                modifier = Modifier.fillMaxWidth(),
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
                 onClick = {
+
                     if (apiKey.isBlank()) {
-                        message = "API key cannot be empty."
+
+                        message =
+                            "API key cannot be empty."
+
                     } else {
+
                         SecureApiKeyStore.save(
                             context,
                             apiKey.trim()
                         )
 
-                        message = "API key saved."
+                        message =
+                            "API key saved."
                     }
                 }
             ) {
+
                 Icon(
                     Icons.Filled.Check,
-                    contentDescription = null
+                    contentDescription =
+                        null
                 )
 
                 Spacer(
                     Modifier.width(8.dp)
                 )
 
-                Text("Save API Key")
+                Text(
+                    "Save API Key"
+                )
             }
 
             Spacer(
-                modifier = Modifier.height(8.dp)
+                modifier =
+                    Modifier.height(8.dp)
             )
 
             OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
                 onClick = {
-                    SecureApiKeyStore.clear(context)
+
+                    SecureApiKeyStore.clear(
+                        context
+                    )
+
                     apiKey = ""
-                    message = "API key removed."
+
+                    message =
+                        "API key removed."
                 }
             ) {
-                Text("Remove API Key")
+
+                Text(
+                    "Remove API Key"
+                )
             }
 
             if (message.isNotBlank()) {
 
                 Spacer(
-                    modifier = Modifier.height(12.dp)
+                    modifier =
+                        Modifier.height(12.dp)
                 )
 
                 Text(
+
                     text = message,
+
                     color =
-                        MaterialTheme.colorScheme.primary
+                        MaterialTheme
+                            .colorScheme
+                            .primary
                 )
             }
         }
     }
-}
-
-@androidx.compose.runtime.Composable
-private fun androidx.compose.runtime.CompositionLocalProvider(
-    content: @androidx.compose.runtime.Composable () -> Unit
-) {
-    content()
 }
