@@ -1,14 +1,20 @@
 package com.trevor.assistant
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,31 +25,35 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DeveloperMode
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +62,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -60,1401 +70,1318 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MaterialTheme {
-                TrevorApp()
-            }
+            TREVORApp(
+                context = this
+            )
         }
     }
 }
 
-/* ============================================================
-   TREVOR APP
-   ============================================================ */
+private enum class Screen {
+    DASHBOARD,
+    SETTINGS,
+    DEVELOPER,
+    API_KEY
+}
 
-@Composable
-fun TrevorApp() {
+private data class TrevorSettings(
+    val aiEnabled: Boolean = true,
+    val geminiEnabled: Boolean = true,
+    val orbEnabled: Boolean = true,
+    val developerMode: Boolean = false,
+    val debugMode: Boolean = false,
+    val developerConsole: Boolean = false,
+    val animations: Boolean = true,
+    val conciseResponses: Boolean = true,
+    val technicalDetail: Boolean = true,
+    val showStatusIndicators: Boolean = true,
+    val showQuickActions: Boolean = true,
+    val offlineFirst: Boolean = true,
+    val secureStorage: Boolean = true,
+    val localApiKeyEncryption: Boolean = true
+)
 
-    var showSettings by remember {
-        mutableStateOf(false)
+private object TrevorSettingsStore {
+
+    private const val PREFS = "trevor_settings"
+
+    private const val AI_ENABLED = "ai_enabled"
+    private const val GEMINI_ENABLED = "gemini_enabled"
+    private const val ORB_ENABLED = "orb_enabled"
+    private const val DEVELOPER_MODE = "developer_mode"
+    private const val DEBUG_MODE = "debug_mode"
+    private const val DEVELOPER_CONSOLE = "developer_console"
+    private const val ANIMATIONS = "animations"
+    private const val CONCISE = "concise_responses"
+    private const val TECHNICAL = "technical_detail"
+    private const val STATUS = "show_status"
+    private const val QUICK_ACTIONS = "show_quick_actions"
+    private const val OFFLINE_FIRST = "offline_first"
+    private const val SECURE_STORAGE = "secure_storage"
+    private const val API_ENCRYPTION = "api_key_encryption"
+
+    fun load(context: Context): TrevorSettings {
+
+        val prefs = context.getSharedPreferences(
+            PREFS,
+            Context.MODE_PRIVATE
+        )
+
+        return TrevorSettings(
+            aiEnabled = prefs.getBoolean(AI_ENABLED, true),
+            geminiEnabled = prefs.getBoolean(GEMINI_ENABLED, true),
+            orbEnabled = prefs.getBoolean(ORB_ENABLED, true),
+            developerMode = prefs.getBoolean(DEVELOPER_MODE, false),
+            debugMode = prefs.getBoolean(DEBUG_MODE, false),
+            developerConsole = prefs.getBoolean(
+                DEVELOPER_CONSOLE,
+                false
+            ),
+            animations = prefs.getBoolean(
+                ANIMATIONS,
+                true
+            ),
+            conciseResponses = prefs.getBoolean(
+                CONCISE,
+                true
+            ),
+            technicalDetail = prefs.getBoolean(
+                TECHNICAL,
+                true
+            ),
+            showStatusIndicators = prefs.getBoolean(
+                STATUS,
+                true
+            ),
+            showQuickActions = prefs.getBoolean(
+                QUICK_ACTIONS,
+                true
+            ),
+            offlineFirst = prefs.getBoolean(
+                OFFLINE_FIRST,
+                true
+            ),
+            secureStorage = prefs.getBoolean(
+                SECURE_STORAGE,
+                true
+            ),
+            localApiKeyEncryption = prefs.getBoolean(
+                API_ENCRYPTION,
+                true
+            )
+        )
     }
 
-    if (showSettings) {
-        SettingsScreen(
-            onBack = {
-                showSettings = false
+    fun save(
+        context: Context,
+        settings: TrevorSettings
+    ) {
+
+        context
+            .getSharedPreferences(
+                PREFS,
+                Context.MODE_PRIVATE
+            )
+            .edit()
+            .apply {
+
+                putBoolean(AI_ENABLED, settings.aiEnabled)
+                putBoolean(
+                    GEMINI_ENABLED,
+                    settings.geminiEnabled
+                )
+                putBoolean(
+                    ORB_ENABLED,
+                    settings.orbEnabled
+                )
+                putBoolean(
+                    DEVELOPER_MODE,
+                    settings.developerMode
+                )
+                putBoolean(
+                    DEBUG_MODE,
+                    settings.debugMode
+                )
+                putBoolean(
+                    DEVELOPER_CONSOLE,
+                    settings.developerConsole
+                )
+                putBoolean(
+                    ANIMATIONS,
+                    settings.animations
+                )
+                putBoolean(
+                    CONCISE,
+                    settings.conciseResponses
+                )
+                putBoolean(
+                    TECHNICAL,
+                    settings.technicalDetail
+                )
+                putBoolean(
+                    STATUS,
+                    settings.showStatusIndicators
+                )
+                putBoolean(
+                    QUICK_ACTIONS,
+                    settings.showQuickActions
+                )
+                putBoolean(
+                    OFFLINE_FIRST,
+                    settings.offlineFirst
+                )
+                putBoolean(
+                    SECURE_STORAGE,
+                    settings.secureStorage
+                )
+                putBoolean(
+                    API_ENCRYPTION,
+                    settings.localApiKeyEncryption
+                )
+
+                apply()
             }
-        )
-    } else {
-        TrevorDashboard(
-            onSettings = {
-                showSettings = true
-            }
+    }
+
+    fun restoreDefaults(
+        context: Context
+    ) {
+        save(
+            context,
+            TrevorSettings()
         )
     }
 }
 
-/* ============================================================
-   DASHBOARD
-   ============================================================ */
-
 @Composable
-fun TrevorDashboard(
-    onSettings: () -> Unit
+private fun TREVORApp(
+    context: Context
 ) {
 
-    var inputText by remember {
+    var screen by remember {
+        mutableStateOf(Screen.DASHBOARD)
+    }
+
+    var settings by remember {
+        mutableStateOf(
+            TrevorSettingsStore.load(context)
+        )
+    }
+
+    fun updateSettings(
+        newSettings: TrevorSettings
+    ) {
+        settings = newSettings
+        TrevorSettingsStore.save(
+            context,
+            newSettings
+        )
+    }
+
+    when (screen) {
+
+        Screen.DASHBOARD -> {
+            DashboardScreen(
+                context = context,
+                settings = settings,
+                onSettings = {
+                    screen = Screen.SETTINGS
+                },
+                onDeveloper = {
+                    screen = Screen.DEVELOPER
+                }
+            )
+        }
+
+        Screen.SETTINGS -> {
+            SettingsScreen(
+                context = context,
+                settings = settings,
+                onBack = {
+                    screen = Screen.DASHBOARD
+                },
+                onApiKey = {
+                    screen = Screen.API_KEY
+                },
+                onDeveloper = {
+                    screen = Screen.DEVELOPER
+                },
+                onChange = ::updateSettings,
+                onRestoreDefaults = {
+                    TrevorSettingsStore.restoreDefaults(
+                        context
+                    )
+
+                    settings =
+                        TrevorSettingsStore.load(context)
+                }
+            )
+        }
+
+        Screen.DEVELOPER -> {
+            DeveloperScreen(
+                context = context,
+                settings = settings,
+                onBack = {
+                    screen = Screen.SETTINGS
+                }
+            )
+        }
+
+        Screen.API_KEY -> {
+            ApiKeyScreen(
+                context = context,
+                onBack = {
+                    screen = Screen.SETTINGS
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardScreen(
+    context: Context,
+    settings: TrevorSettings,
+    onSettings: () -> Unit,
+    onDeveloper: () -> Unit
+) {
+
+    var input by remember {
         mutableStateOf("")
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFFF4F8FC),
-                        Color(0xFFEAF2F8)
-                    )
-                )
-            )
-            .padding(16.dp)
-    ) {
+    var response by remember {
+        mutableStateOf("Ready for your command.")
+    }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    var processing by remember {
+        mutableStateOf(false)
+    }
 
-            Column(
-                modifier = Modifier.weight(1f)
+    val scope = rememberCoroutineScope()
+
+    val filePicker =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument()
+        ) { uri: Uri? ->
+
+            if (uri != null) {
+                response =
+                    "File selected:\n${uri.lastPathSegment}"
+            }
+        }
+
+    fun submitCommand() {
+
+        val command = input.trim()
+
+        if (command.isBlank()) {
+            return
+        }
+
+        processing = true
+        response = "Processing..."
+
+        scope.launch {
+
+            when (
+                val result =
+                    TrevorLocalEngine.processCommand(command)
             ) {
 
-                Text(
-                    text = "TREVOR",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF007AFF)
-                )
+                is TrevorEngineResult.Answer -> {
+                    response = result.text
+                }
 
-                Text(
-                    text = "v0.0.2",
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                is TrevorEngineResult.Error -> {
+                    response = "Error: ${result.message}"
+                }
+
+                is TrevorEngineResult.NeedAI -> {
+
+                    if (!settings.aiEnabled) {
+
+                        response =
+                            "AI is disabled. Enable AI in Settings."
+
+                    } else if (!settings.geminiEnabled) {
+
+                        response =
+                            "Gemini AI is disabled."
+
+                    } else {
+
+                        val apiKey =
+                            SecureApiKeyStore.load(context)
+
+                        if (apiKey.isNullOrBlank()) {
+
+                            response =
+                                "Gemini API key is not configured.\n\n" +
+                                        "Open Settings → Gemini API Key."
+
+                        } else {
+
+                            val aiResult =
+                                GeminiAiProvider.ask(
+                                    apiKey = apiKey,
+                                    prompt = result.prompt
+                                )
+
+                            response =
+                                if (aiResult.isSuccess) {
+
+                                    aiResult.getOrNull()
+                                        ?: "Gemini returned an empty response."
+
+                                } else {
+
+                                    "AI Error: " +
+                                            (
+                                                    aiResult.exceptionOrNull()
+                                                        ?.message
+                                                        ?: "Unknown error."
+                                                    )
+                                }
+                        }
+                    }
+                }
+            }
+
+            processing = false
+        }
+    }
+
+    val statusText =
+        if (processing) "THINKING" else "ONLINE"
+
+    Scaffold(
+        topBar = {
+
+            TopAppBar(
+                title = {
+                    Column {
+
+                        Text(
+                            text = "TREVOR v0.0.2",
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        if (settings.showStatusIndicators) {
+
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                },
+                actions = {
+
+                    IconButton(
+                        onClick = onDeveloper
+                    ) {
+                        Icon(
+                            imageVector =
+                                Icons.Filled.DeveloperMode,
+                            contentDescription =
+                                "Developer Mode"
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onSettings
+                    ) {
+                        Icon(
+                            imageVector =
+                                Icons.Filled.Settings,
+                            contentDescription =
+                                "Settings"
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(12.dp)
+        ) {
+
+            if (settings.showQuickActions) {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        Arrangement.spacedBy(8.dp)
+                ) {
+
+                    Button(
+                        modifier =
+                            Modifier.weight(1f),
+                        onClick = {
+                            filePicker.launch(
+                                arrayOf("*/*")
+                            )
+                        }
+                    ) {
+                        Icon(
+                            Icons.Filled.AttachFile,
+                            contentDescription = null
+                        )
+
+                        Spacer(
+                            Modifier.width(4.dp)
+                        )
+
+                        Text("Analyze File")
+                    }
+
+                    Button(
+                        modifier =
+                            Modifier.weight(1f),
+                        onClick = {
+                            input =
+                                "Research "
+                        }
+                    ) {
+                        Text("Research")
+                    }
+
+                    Button(
+                        modifier =
+                            Modifier.weight(1f),
+                        onClick = {
+                            input =
+                                "Visualize "
+                        }
+                    ) {
+                        Text("Visualize")
+                    }
+                }
+            }
+
+            if (settings.orbEnabled) {
+
+                TrevorOrb(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(230.dp),
+                    state =
+                        if (processing) {
+                            "THINKING"
+                        } else {
+                            "IDLE"
+                        }
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor =
+                        MaterialTheme.colorScheme.surfaceVariant
+                )
             ) {
 
-                Box(
-                    modifier = Modifier
-                        .size(9.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color(0xFF10B981))
-                )
-
-                Spacer(modifier = Modifier.width(6.dp))
-
                 Text(
-                    text = "ONLINE",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF10B981)
+                    text = response,
+                    modifier = Modifier.padding(16.dp)
                 )
+            }
 
-                Spacer(modifier = Modifier.width(8.dp))
+            Spacer(
+                modifier = Modifier.weight(1f)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
 
                 IconButton(
-                    onClick = onSettings
+                    onClick = {
+                        filePicker.launch(
+                            arrayOf("*/*")
+                        )
+                    }
                 ) {
-
                     Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings"
+                        Icons.Filled.AttachFile,
+                        contentDescription = "Attach"
+                    )
+                }
+
+                OutlinedTextField(
+                    modifier =
+                        Modifier.weight(1f),
+                    value = input,
+                    onValueChange = {
+                        input = it
+                    },
+                    enabled = !processing,
+                    placeholder = {
+                        Text("Ask TREVOR...")
+                    },
+                    singleLine = true
+                )
+
+                IconButton(
+                    onClick = {
+                        Toast.makeText(
+                            context,
+                            "Voice input is not implemented yet.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                ) {
+                    Icon(
+                        Icons.Filled.Mic,
+                        contentDescription = "Voice"
+                    )
+                }
+
+                IconButton(
+                    enabled = !processing,
+                    onClick = {
+                        submitCommand()
+                    }
+                ) {
+                    Icon(
+                        Icons.Filled.Send,
+                        contentDescription = "Send"
                     )
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-
-            QuickAction("Analyze File")
-            QuickAction("Research Topic")
-            QuickAction("Visualize")
-        }
-
-        Spacer(modifier = Modifier.height(22.dp))
-
-        TrevorCorePlaceholder(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.75f)
-            )
-        ) {
-
-            Column(
-                modifier = Modifier.padding(18.dp)
-            ) {
-
-                Text(
-                    text = "TREVOR CORE",
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF007AFF)
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "Ready for your command.",
-                    color = Color.DarkGray
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.8f))
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            IconButton(
-                onClick = {}
-            ) {
-
-                Icon(
-                    imageVector = Icons.Default.AttachFile,
-                    contentDescription = "Attach"
-                )
-            }
-
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = {
-                    inputText = it
-                },
-                modifier = Modifier.weight(1f),
-                placeholder = {
-                    Text("Command TREVOR...")
-                },
-                singleLine = true
-            )
-
-            IconButton(
-                onClick = {}
-            ) {
-
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Microphone"
-                )
-            }
-
-            IconButton(
-                onClick = {}
-            ) {
-
-                Icon(
-                    imageVector = Icons.Filled.Send,
-                    contentDescription = "Send"
-                )
-            }
-        }
     }
 }
 
-/* ============================================================
-   QUICK ACTION
-   ============================================================ */
-
 @Composable
-fun QuickAction(
-    text: String
+private fun TrevorOrb(
+    modifier: Modifier,
+    state: String
 ) {
 
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.8f))
-            .padding(
-                horizontal = 12.dp,
-                vertical = 8.dp
-            )
-    ) {
-
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            color = Color(0xFF007AFF),
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-/* ============================================================
-   CURRENT CORE PLACEHOLDER
-   ============================================================ */
-
-@Composable
-fun TrevorCorePlaceholder(
-    modifier: Modifier = Modifier
-) {
-
-    Box(
-        modifier = modifier,
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.radialGradient(
+                    listOf(
+                        Color(0xFF1565C0),
+                        Color(0xFF0D1B2A),
+                        Color.Black
+                    )
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
 
-        Box(
-            modifier = Modifier
-                .size(190.dp)
-                .clip(RoundedCornerShape(100))
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF00D4FF),
-                            Color(0xFF007AFF),
-                            Color.Transparent
-                        )
-                    )
-                ),
-            contentAlignment = Alignment.Center
+        Column(
+            horizontalAlignment =
+                Alignment.CenterHorizontally
         ) {
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+            Box(
+                modifier = Modifier
+                    .size(130.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                Color(0xFF80D8FF),
+                                Color(0xFF0288D1),
+                                Color(0xFF001B2E)
+                            )
+                        )
+                    ),
+                contentAlignment =
+                    Alignment.Center
             ) {
 
                 Text(
-                    text = "TREVOR CORE",
+                    text = "T",
                     color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "IDLE",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 12.sp
+                    style =
+                        MaterialTheme.typography.displayMedium,
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
+
+            Spacer(
+                modifier = Modifier.height(10.dp)
+            )
+
+            Text(
+                text = "TREVOR CORE • $state",
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
 
-/* ============================================================
-   DATA MODELS
-   ============================================================ */
-
-data class TrevorSetting(
-    val name: String,
-    val description: String,
-    val defaultValue: Boolean = true
-)
-
-data class TrevorCategory(
-    val name: String,
-    val description: String,
-    val settings: List<TrevorSetting>
-)
-
-/* ============================================================
-   SETTINGS SCREEN
-   ============================================================ */
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    onBack: () -> Unit
+private fun SettingsScreen(
+    context: Context,
+    settings: TrevorSettings,
+    onBack: () -> Unit,
+    onApiKey: () -> Unit,
+    onDeveloper: () -> Unit,
+    onChange: (TrevorSettings) -> Unit,
+    onRestoreDefaults: () -> Unit
 ) {
 
-    var showWarning by remember {
-        mutableStateOf(true)
-    }
+    Scaffold(
+        topBar = {
 
-    var showResetDialog by remember {
-        mutableStateOf(false)
-    }
+            TopAppBar(
+                title = {
+                    Text("Settings")
+                },
+                navigationIcon = {
 
-    /*
-     * TVA EASTER EGG
-     *
-     * Tap the version at the bottom exactly five times.
-     */
-
-    var versionTapCount by remember {
-        mutableStateOf(0)
-    }
-
-    var showTimeSlip by remember {
-        mutableStateOf(false)
-    }
-
-    val categories = remember {
-
-        listOf(
-
-            TrevorCategory(
-                "AI Engine",
-                "Controls TREVOR's intelligence engine.",
-                listOf(
-                    TrevorSetting(
-                        "AI Engine Enabled",
-                        "Enable the AI engine."
-                    ),
-                    TrevorSetting(
-                        "Automatic Model Selection",
-                        "Allow TREVOR to select a suitable model."
-                    ),
-                    TrevorSetting(
-                        "Reasoning Mode",
-                        "Allow deeper reasoning when required."
-                    ),
-                    TrevorSetting(
-                        "Context Awareness",
-                        "Use previous conversation context."
-                    ),
-                    TrevorSetting(
-                        "Long Context",
-                        "Allow larger context windows."
-                    ),
-                    TrevorSetting(
-                        "Response Streaming",
-                        "Display responses while they are generated."
-                    ),
-                    TrevorSetting(
-                        "Automatic Retry",
-                        "Retry temporary AI failures."
-                    ),
-                    TrevorSetting(
-                        "Connection Fallback",
-                        "Use fallback connection methods."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Responses",
-                "Controls how TREVOR communicates.",
-                listOf(
-                    TrevorSetting(
-                        "Concise Responses",
-                        "Prefer shorter responses."
-                    ),
-                    TrevorSetting(
-                        "Technical Detail",
-                        "Allow more technical explanations."
-                    ),
-                    TrevorSetting(
-                        "Automatic Formatting",
-                        "Format lists and structured responses."
-                    ),
-                    TrevorSetting(
-                        "Code Formatting",
-                        "Use code blocks for programming output."
-                    ),
-                    TrevorSetting(
-                        "Confirmation Requests",
-                        "Ask before sensitive actions."
-                    ),
-                    TrevorSetting(
-                        "Automatic Summaries",
-                        "Summarize very long responses."
-                    ),
-                    TrevorSetting(
-                        "Response History",
-                        "Keep generated responses visible."
-                    ),
-                    TrevorSetting(
-                        "Error Explanations",
-                        "Explain failed operations."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Core / Orb",
-                "Controls the visual TREVOR core.",
-                listOf(
-                    TrevorSetting(
-                        "Orb Enabled",
-                        "Display the TREVOR core."
-                    ),
-                    TrevorSetting(
-                        "Orb Animation",
-                        "Animate the core."
-                    ),
-                    TrevorSetting(
-                        "Orb Rotation",
-                        "Allow orbital rotation."
-                    ),
-                    TrevorSetting(
-                        "Orb Glow",
-                        "Enable energy glow."
-                    ),
-                    TrevorSetting(
-                        "Orb Particles",
-                        "Display energy particles."
-                    ),
-                    TrevorSetting(
-                        "Orb Rings",
-                        "Display orbital rings."
-                    ),
-                    TrevorSetting(
-                        "State Animations",
-                        "Change visuals based on TREVOR state."
-                    ),
-                    TrevorSetting(
-                        "Auto Performance Mode",
-                        "Automatically reduce visual load when needed."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Display",
-                "Controls the application interface.",
-                listOf(
-                    TrevorSetting(
-                        "Light Theme",
-                        "Use the default light interface."
-                    ),
-                    TrevorSetting(
-                        "Glass UI",
-                        "Enable translucent interface elements."
-                    ),
-                    TrevorSetting(
-                        "UI Animations",
-                        "Animate interface transitions."
-                    ),
-                    TrevorSetting(
-                        "Smooth Scrolling",
-                        "Use smoother scrolling."
-                    ),
-                    TrevorSetting(
-                        "Compact Cards",
-                        "Use smaller information cards."
-                    ),
-                    TrevorSetting(
-                        "Status Indicators",
-                        "Display system status indicators."
-                    ),
-                    TrevorSetting(
-                        "Quick Actions",
-                        "Display dashboard quick actions."
-                    ),
-                    TrevorSetting(
-                        "Fullscreen Interface",
-                        "Allow immersive interface mode."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Voice",
-                "Controls voice-related features.",
-                listOf(
-                    TrevorSetting(
-                        "Voice Input",
-                        "Allow voice commands."
-                    ),
-                    TrevorSetting(
-                        "Voice Output",
-                        "Allow spoken responses."
-                    ),
-                    TrevorSetting(
-                        "Wake Detection",
-                        "Allow wake-word detection."
-                    ),
-                    TrevorSetting(
-                        "Voice Confirmation",
-                        "Confirm important voice commands."
-                    ),
-                    TrevorSetting(
-                        "Automatic Listening",
-                        "Allow listening after activation."
-                    ),
-                    TrevorSetting(
-                        "Noise Filtering",
-                        "Filter background noise."
-                    ),
-                    TrevorSetting(
-                        "Voice Feedback",
-                        "Provide voice status feedback."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Memory",
-                "Controls local TREVOR memory.",
-                listOf(
-                    TrevorSetting(
-                        "Memory System",
-                        "Enable persistent memory."
-                    ),
-                    TrevorSetting(
-                        "Conversation Memory",
-                        "Remember conversation context."
-                    ),
-                    TrevorSetting(
-                        "Automatic Memory",
-                        "Automatically save useful information."
-                    ),
-                    TrevorSetting(
-                        "Memory Retrieval",
-                        "Retrieve relevant stored information."
-                    ),
-                    TrevorSetting(
-                        "Memory Confirmation",
-                        "Ask before saving certain information."
-                    ),
-                    TrevorSetting(
-                        "Memory Cleanup",
-                        "Automatically remove temporary memory."
-                    ),
-                    TrevorSetting(
-                        "Memory Limits",
-                        "Prevent unlimited memory growth."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Storage",
-                "Controls local files and cache.",
-                listOf(
-                    TrevorSetting(
-                        "Local Cache",
-                        "Use local application cache."
-                    ),
-                    TrevorSetting(
-                        "Automatic Cache Cleanup",
-                        "Clean old cache data."
-                    ),
-                    TrevorSetting(
-                        "Temporary Files",
-                        "Allow temporary working files."
-                    ),
-                    TrevorSetting(
-                        "Attachment Cache",
-                        "Cache recently used attachments."
-                    ),
-                    TrevorSetting(
-                        "Storage Monitoring",
-                        "Monitor available storage."
-                    ),
-                    TrevorSetting(
-                        "Low Storage Protection",
-                        "Reduce caching when storage is low."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Network",
-                "Controls network behavior.",
-                listOf(
-                    TrevorSetting(
-                        "Network Access",
-                        "Allow network-connected features."
-                    ),
-                    TrevorSetting(
-                        "Automatic Reconnect",
-                        "Reconnect after temporary failures."
-                    ),
-                    TrevorSetting(
-                        "Request Timeout Protection",
-                        "Stop stalled requests."
-                    ),
-                    TrevorSetting(
-                        "Retry Failed Requests",
-                        "Retry temporary failures."
-                    ),
-                    TrevorSetting(
-                        "Wi-Fi Preference",
-                        "Prefer Wi-Fi for large operations."
-                    ),
-                    TrevorSetting(
-                        "Data Usage Protection",
-                        "Reduce unnecessary network traffic."
-                    ),
-                    TrevorSetting(
-                        "Offline Mode",
-                        "Allow limited offline operation."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Performance",
-                "Controls resource usage.",
-                listOf(
-                    TrevorSetting(
-                        "Automatic Performance Mode",
-                        "Automatically optimize performance."
-                    ),
-                    TrevorSetting(
-                        "Battery Optimization",
-                        "Reduce unnecessary background work."
-                    ),
-                    TrevorSetting(
-                        "Background Processing",
-                        "Allow background tasks."
-                    ),
-                    TrevorSetting(
-                        "Animation Optimization",
-                        "Optimize animations for performance."
-                    ),
-                    TrevorSetting(
-                        "Memory Optimization",
-                        "Reduce unnecessary memory usage."
-                    ),
-                    TrevorSetting(
-                        "CPU Protection",
-                        "Prevent excessive CPU usage."
-                    ),
-                    TrevorSetting(
-                        "Thermal Protection",
-                        "Reduce workload during high temperatures."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Security",
-                "Controls TREVOR security behavior.",
-                listOf(
-                    TrevorSetting(
-                        "Permission Checks",
-                        "Check Android permissions before actions."
-                    ),
-                    TrevorSetting(
-                        "Action Confirmation",
-                        "Confirm potentially important actions."
-                    ),
-                    TrevorSetting(
-                        "Sensitive Action Protection",
-                        "Require extra confirmation for sensitive operations."
-                    ),
-                    TrevorSetting(
-                        "Secure Storage",
-                        "Protect locally stored sensitive data."
-                    ),
-                    TrevorSetting(
-                        "Session Protection",
-                        "Protect active TREVOR sessions."
-                    ),
-                    TrevorSetting(
-                        "Unknown Command Protection",
-                        "Reject unsupported commands."
-                    ),
-                    TrevorSetting(
-                        "Verification Required",
-                        "Verify actions before reporting success."
-                    )
-                )
-            ),
-
-            TrevorCategory(
-                "Developer",
-                "Advanced development and diagnostics.",
-                listOf(
-                    TrevorSetting(
-                        "Debug Mode",
-                        "Enable development diagnostics.",
-                        false
-                    ),
-                    TrevorSetting(
-                        "Debug Logs",
-                        "Save detailed diagnostic logs.",
-                        false
-                    ),
-                    TrevorSetting(
-                        "Performance Overlay",
-                        "Display performance information.",
-                        false
-                    ),
-                    TrevorSetting(
-                        "Experimental Features",
-                        "Enable experimental features.",
-                        false
-                    ),
-                    TrevorSetting(
-                        "Developer Console",
-                        "Enable developer tools.",
-                        false
-                    ),
-                    TrevorSetting(
-                        "Diagnostic Mode",
-                        "Enable advanced diagnostics.",
-                        false
-                    )
-                )
+                    IconButton(
+                        onClick = onBack
+                    ) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
             )
-        )
-    }
-
-    var settingsState by remember {
-
-        mutableStateOf(
-            categories
-                .flatMap {
-                    it.settings
-                }
-                .associate {
-                    it.name to it.defaultValue
-                }
-        )
-    }
-
-    var modifiedSettings by remember {
-        mutableStateOf(setOf<String>())
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFFF4F8FC),
-                        Color(0xFFEAF2F8)
-                    )
-                )
-            )
-    ) {
-
-        /* ====================================================
-           SETTINGS HEADER
-           ==================================================== */
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            IconButton(
-                onClick = onBack
-            ) {
-
-                Icon(
-                    imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "Back"
-                )
-            }
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-
-                Text(
-                    text = "TREVOR SETTINGS",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF007AFF)
-                )
-
-                Text(
-                    text = "${categories.sumOf { it.settings.size }} settings",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-            }
-
-            IconButton(
-                onClick = {
-                    showResetDialog = true
-                }
-            ) {
-
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Reset"
-                )
-            }
         }
-
-        /* ====================================================
-           SETTINGS LIST
-           ==================================================== */
+    ) { padding ->
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-
-            contentPadding = PaddingValues(
-                start = 12.dp,
-                end = 12.dp,
-                bottom = 30.dp
-            ),
-
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
         ) {
 
             item {
-
-                AdvancedWarningCard()
+                SettingsSectionTitle("AI ENGINE")
             }
 
             item {
-
-                DefaultStatusCard(
-                    modifiedCount = modifiedSettings.size
-                )
-            }
-
-            categories.forEach { category ->
-
-                item {
-
-                    SettingsCategoryHeader(
-                        category = category
-                    )
-                }
-
-                items(
-                    items = category.settings,
-                    key = {
-                        it.name
+                SettingSwitch(
+                    title = "AI Enabled",
+                    checked = settings.aiEnabled,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                aiEnabled = it
+                            )
+                        )
                     }
-                ) { setting ->
-
-                    val enabled =
-                        settingsState[setting.name]
-                            ?: setting.defaultValue
-
-                    SettingRow(
-                        setting = setting,
-                        enabled = enabled,
-                        modified = modifiedSettings.contains(
-                            setting.name
-                        ),
-                        onToggle = {
-
-                            val newValue = !enabled
-
-                            settingsState =
-                                settingsState.toMutableMap().apply {
-                                    this[setting.name] = newValue
-                                }
-
-                            modifiedSettings =
-                                modifiedSettings.toMutableSet().apply {
-
-                                    if (
-                                        newValue ==
-                                        setting.defaultValue
-                                    ) {
-                                        remove(setting.name)
-                                    } else {
-                                        add(setting.name)
-                                    }
-                                }
-                        }
-                    )
-                }
+                )
             }
 
-            /* ====================================================
-               BOTTOM AREA + EASTER EGG
-               ==================================================== */
+            item {
+                SettingSwitch(
+                    title = "Gemini AI",
+                    checked = settings.geminiEnabled,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                geminiEnabled = it
+                            )
+                        )
+                    }
+                )
+            }
 
             item {
 
-                Spacer(
-                    modifier = Modifier.height(20.dp)
+                SettingButton(
+                    title = "Gemini API Key",
+                    subtitle =
+                        if (
+                            SecureApiKeyStore.exists(context)
+                        ) {
+                            "API key configured"
+                        } else {
+                            "No API key configured"
+                        },
+                    onClick = onApiKey
                 )
+            }
 
-                OutlinedButton(
-                    onClick = {
-                        showResetDialog = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
+            item {
+                SettingsSectionTitle("CORE / ORB")
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Orb Enabled",
+                    checked = settings.orbEnabled,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                orbEnabled = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                SettingsSectionTitle("DISPLAY")
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Animations",
+                    checked = settings.animations,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                animations = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Show Status Indicators",
+                    checked =
+                        settings.showStatusIndicators,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                showStatusIndicators = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Show Quick Actions",
+                    checked =
+                        settings.showQuickActions,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                showQuickActions = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                SettingsSectionTitle("RESPONSES")
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Concise Responses",
+                    checked =
+                        settings.conciseResponses,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                conciseResponses = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Technical Detail",
+                    checked =
+                        settings.technicalDetail,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                technicalDetail = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                SettingsSectionTitle("DEVELOPER")
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Developer Mode",
+                    checked =
+                        settings.developerMode,
+                    onCheckedChange = {
+                        val updated =
+                            settings.copy(
+                                developerMode = it
+                            )
+
+                        onChange(updated)
+
+                        if (it) {
+                            onDeveloper()
+                        }
+                    }
+                )
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Debug Mode",
+                    checked =
+                        settings.debugMode,
+                    onCheckedChange = {
+                        val updated =
+                            settings.copy(
+                                debugMode = it
+                            )
+
+                        onChange(updated)
+
+                        if (it) {
+                            onDeveloper()
+                        }
+                    }
+                )
+            }
+
+            item {
+                SettingSwitch(
+                    title = "Developer Console",
+                    checked =
+                        settings.developerConsole,
+                    onCheckedChange = {
+                        onChange(
+                            settings.copy(
+                                developerConsole = it
+                            )
+                        )
+                    }
+                )
+            }
+
+            item {
+                Spacer(
+                    Modifier.height(20.dp)
+                )
+            }
+
+            item {
+
+                Button(
+                    modifier =
+                        Modifier.fillMaxWidth(),
+                    onClick = onRestoreDefaults
                 ) {
 
                     Icon(
-                        imageVector = Icons.Default.Refresh,
+                        Icons.Filled.Refresh,
                         contentDescription = null
                     )
 
                     Spacer(
-                        modifier = Modifier.width(8.dp)
+                        Modifier.width(8.dp)
                     )
 
-                    Text(
-                        text = "Restore All Default Settings"
-                    )
+                    Text("Restore Defaults")
                 }
+            }
 
+            item {
                 Spacer(
-                    modifier = Modifier.height(20.dp)
-                )
-
-                /*
-                 * =================================================
-                 * TVA EASTER EGG
-                 *
-                 * TAP THIS VERSION TEXT FIVE TIMES.
-                 * =================================================
-                 */
-
-                Text(
-                    text = "TREVOR • v0.0.2",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-
-                            versionTapCount++
-
-                            if (versionTapCount >= 5) {
-
-                                versionTapCount = 0
-                                showTimeSlip = true
-                            }
-                        },
-                    fontSize = 11.sp,
-                    color = Color.Gray
-                )
-            }
-        }
-    }
-
-    /* ============================================================
-       ADVANCED SETTINGS WARNING
-       ============================================================ */
-
-    if (showWarning) {
-
-        AlertDialog(
-
-            onDismissRequest = {
-                showWarning = false
-            },
-
-            icon = {
-
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFFF9800)
-                )
-            },
-
-            title = {
-
-                Text(
-                    text = "Advanced Settings Warning"
-                )
-            },
-
-            text = {
-
-                Text(
-                    text =
-                        "TREVOR's default settings are recommended " +
-                        "for normal operation.\n\n" +
-
-                        "Changing advanced settings may increase " +
-                        "battery, memory, CPU, storage, or network " +
-                        "usage and can reduce performance on some " +
-                        "devices or apps.\n\n" +
-
-                        "Incorrect configurations may cause TREVOR " +
-                        "features to malfunction or become unstable.\n\n" +
-
-                        "Only change a setting when you understand " +
-                        "what it does. You can restore the default " +
-                        "configuration at any time."
-                )
-            },
-
-            confirmButton = {
-
-                TextButton(
-                    onClick = {
-                        showWarning = false
-                    }
-                ) {
-
-                    Text(
-                        text = "I Understand"
-                    )
-                }
-            }
-        )
-    }
-
-    /* ============================================================
-       RESET DIALOG
-       ============================================================ */
-
-    if (showResetDialog) {
-
-        AlertDialog(
-
-            onDismissRequest = {
-                showResetDialog = false
-            },
-
-            title = {
-
-                Text(
-                    text = "Restore Defaults?"
-                )
-            },
-
-            text = {
-
-                Text(
-                    text =
-                        "All TREVOR settings will be returned " +
-                        "to their recommended default values."
-                )
-            },
-
-            confirmButton = {
-
-                TextButton(
-
-                    onClick = {
-
-                        settingsState =
-                            categories
-                                .flatMap {
-                                    it.settings
-                                }
-                                .associate {
-                                    it.name to it.defaultValue
-                                }
-
-                        modifiedSettings = emptySet()
-
-                        showResetDialog = false
-                    }
-                ) {
-
-                    Text(
-                        text = "Restore"
-                    )
-                }
-            },
-
-            dismissButton = {
-
-                TextButton(
-                    onClick = {
-                        showResetDialog = false
-                    }
-                ) {
-
-                    Text(
-                        text = "Cancel"
-                    )
-                }
-            }
-        )
-    }
-
-    /* ============================================================
-       TVA TIME-SLIP EASTER EGG
-       ============================================================ */
-
-    if (showTimeSlip) {
-
-        AlertDialog(
-
-            onDismissRequest = {
-                showTimeSlip = false
-            },
-
-            title = {
-
-                Text(
-                    text = "TVA INCOMING",
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFF9800)
-                )
-            },
-
-            text = {
-
-                Text(
-                    text = "You are about to time slip."
-                )
-            },
-
-            confirmButton = {
-
-                TextButton(
-                    onClick = {
-                        showTimeSlip = false
-                    }
-                ) {
-
-                    Text(
-                        text = "UNDERSTOOD"
-                    )
-                }
-            }
-        )
-    }
-}
-
-/* ============================================================
-   WARNING CARD
-   ============================================================ */
-
-@Composable
-fun AdvancedWarningCard() {
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFFF4E5)
-        )
-    ) {
-
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = null,
-                tint = Color(0xFFFF9800)
-            )
-
-            Spacer(
-                modifier = Modifier.width(12.dp)
-            )
-
-            Column {
-
-                Text(
-                    text = "Advanced Settings",
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFE65100)
-                )
-
-                Spacer(
-                    modifier = Modifier.height(5.dp)
-                )
-
-                Text(
-                    text =
-                        "Default settings are recommended. " +
-                        "Changing advanced options can affect " +
-                        "performance, battery usage, memory usage, " +
-                        "storage, network usage, or TREVOR stability.",
-                    fontSize = 13.sp,
-                    color = Color.DarkGray
+                    Modifier.height(32.dp)
                 )
             }
         }
     }
 }
 
-/* ============================================================
-   DEFAULT STATUS CARD
-   ============================================================ */
-
 @Composable
-fun DefaultStatusCard(
-    modifiedCount: Int
+private fun SettingSwitch(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
 ) {
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(
-                alpha = 0.8f
-            )
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment =
+            Alignment.CenterVertically
     ) {
 
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Text(
+            text = title,
+            modifier =
+                Modifier.weight(1f)
+        )
 
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = Color(0xFF10B981)
-            )
-
-            Spacer(
-                modifier = Modifier.width(10.dp)
-            )
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-
-                Text(
-                    text =
-                        if (modifiedCount == 0)
-                            "DEFAULT CONFIGURATION"
-                        else
-                            "$modifiedCount SETTINGS MODIFIED",
-
-                    fontWeight = FontWeight.Bold,
-
-                    color =
-                        if (modifiedCount == 0)
-                            Color(0xFF10B981)
-                        else
-                            Color(0xFFFF9800)
-                )
-
-                Text(
-                    text =
-                        if (modifiedCount == 0)
-                            "TREVOR is using the recommended configuration."
-                        else
-                            "Some settings differ from the recommended configuration.",
-
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-            }
-        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
     }
 }
 
-/* ============================================================
-   CATEGORY HEADER
-   ============================================================ */
-
 @Composable
-fun SettingsCategoryHeader(
-    category: TrevorCategory
+private fun SettingButton(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
 ) {
 
     Column(
-        modifier = Modifier.padding(
-            top = 10.dp,
-            start = 4.dp,
-            bottom = 2.dp
-        )
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
     ) {
 
         Text(
-            text = category.name,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF007AFF)
+            text = title,
+            fontWeight = FontWeight.Medium
         )
 
         Text(
-            text = category.description,
-            fontSize = 12.sp,
-            color = Color.Gray
+            text = subtitle,
+            style =
+                MaterialTheme.typography.bodySmall
         )
     }
 }
 
-/* ============================================================
-   SETTING ROW
-   ============================================================ */
+@Composable
+private fun SettingsSectionTitle(
+    title: String
+) {
+
+    Text(
+        text = title,
+        modifier = Modifier.padding(
+            top = 20.dp,
+            bottom = 8.dp
+        ),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold
+    )
+
+    Divider()
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ApiKeyScreen(
+    context: Context,
+    onBack: () -> Unit
+) {
+
+    var apiKey by remember {
+        mutableStateOf(
+            SecureApiKeyStore.load(context) ?: ""
+        )
+    }
+
+    var saved by remember {
+        mutableStateOf(false)
+    }
+
+    Scaffold(
+        topBar = {
+
+            TopAppBar(
+                title = {
+                    Text("Gemini API Key")
+                },
+                navigationIcon = {
+
+                    IconButton(
+                        onClick = onBack
+                    ) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(16.dp)
+        ) {
+
+            Text(
+                text =
+                    "Your API key is encrypted locally using Android Keystore."
+            )
+
+            OutlinedTextField(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                value = apiKey,
+                onValueChange = {
+                    apiKey = it
+                    saved = false
+                },
+                label = {
+                    Text("Gemini API Key")
+                },
+                singleLine = true
+            )
+
+            Button(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                onClick = {
+
+                    if (apiKey.isBlank()) {
+
+                        Toast.makeText(
+                            context,
+                            "API key cannot be empty.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                    } else {
+
+                        SecureApiKeyStore.save(
+                            context,
+                            apiKey.trim()
+                        )
+
+                        saved = true
+
+                        Toast.makeText(
+                            context,
+                            "API key saved securely.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            ) {
+                Text("Save API Key")
+            }
+
+            if (saved) {
+
+                Text(
+                    text = "✓ API key saved",
+                    color =
+                        MaterialTheme.colorScheme.primary,
+                    fontWeight =
+                        FontWeight.Bold
+                )
+            }
+
+            Button(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                onClick = {
+
+                    SecureApiKeyStore.clear(
+                        context
+                    )
+
+                    apiKey = ""
+                    saved = false
+
+                    Toast.makeText(
+                        context,
+                        "API key removed.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            ) {
+                Text("Remove API Key")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeveloperScreen(
+    context: Context,
+    settings: TrevorSettings,
+    onBack: () -> Unit
+) {
+
+    Scaffold(
+        topBar = {
+
+            TopAppBar(
+                title = {
+                    Text("Developer Mode")
+                },
+                navigationIcon = {
+
+                    IconButton(
+                        onClick = onBack
+                    ) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(10.dp)
+        ) {
+
+            item {
+                Text(
+                    text = "TREVOR Developer Console",
+                    style =
+                        MaterialTheme.typography.headlineSmall,
+                    fontWeight =
+                        FontWeight.Bold
+                )
+            }
+
+            item {
+                Text(
+                    text = "Safe diagnostics and runtime configuration."
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Application",
+                    "TREVOR"
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Version",
+                    "0.0.2"
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Package",
+                    "com.trevor.assistant"
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "AI Enabled",
+                    settings.aiEnabled.toString()
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Gemini Enabled",
+                    settings.geminiEnabled.toString()
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Gemini API Key",
+                    if (
+                        SecureApiKeyStore.exists(context)
+                    ) {
+                        "CONFIGURED"
+                    } else {
+                        "NOT CONFIGURED"
+                    }
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Orb Enabled",
+                    settings.orbEnabled.toString()
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Developer Mode",
+                    settings.developerMode.toString()
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Debug Mode",
+                    settings.debugMode.toString()
+                )
+            }
+
+            item {
+                DiagnosticCard(
+                    "Offline First",
+                    settings.offlineFirst.toString()
+                )
+            }
+        }
+    }
+}
 
 @Composable
-fun SettingRow(
-    setting: TrevorSetting,
-    enabled: Boolean,
-    modified: Boolean,
-    onToggle: () -> Unit
+private fun DiagnosticCard(
+    title: String,
+    value: String
 ) {
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                onToggle()
-            },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(
-                alpha = 0.78f
-            )
-        )
+        modifier = Modifier.fillMaxWidth()
     ) {
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 12.dp
-                ),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp),
+            horizontalArrangement =
+                Arrangement.SpaceBetween
         ) {
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Medium
+            )
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    Text(
-                        text = setting.name,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    if (modified) {
-
-                        Spacer(
-                            modifier = Modifier.width(6.dp)
-                        )
-
-                        Text(
-                            text = "MODIFIED",
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF9800)
-                        )
-                    }
-                }
-
-                Spacer(
-                    modifier = Modifier.height(3.dp)
-                )
-
-                Text(
-                    text = setting.description,
-                    fontSize = 11.sp,
-                    color = Color.Gray
-                )
-            }
-
-            Switch(
-                checked = enabled,
-                onCheckedChange = {
-                    onToggle()
-                }
+            Text(
+                text = value
             )
         }
     }
