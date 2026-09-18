@@ -1,5 +1,7 @@
 package com.trevor.assistant
 
+import kotlin.math.E
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.asin
@@ -8,11 +10,10 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
-import kotlin.math.PI
-import kotlin.math.E
 
 object OfflineCalculator {
 
@@ -56,6 +57,7 @@ object OfflineCalculator {
 
         fun parse(): Double {
             val result = parseExpression()
+
             skipSpaces()
 
             if (position != input.length) {
@@ -74,9 +76,14 @@ object OfflineCalculator {
                 skipSpaces()
 
                 result = when {
-                    match('+') -> result + parseTerm()
-                    match('-') -> result - parseTerm()
-                    else -> return result
+                    match('+') ->
+                        result + parseTerm()
+
+                    match('-') ->
+                        result - parseTerm()
+
+                    else ->
+                        return result
                 }
             }
         }
@@ -88,7 +95,8 @@ object OfflineCalculator {
                 skipSpaces()
 
                 result = when {
-                    match('*') -> result * parsePower()
+                    match('*') ->
+                        result * parsePower()
 
                     match('/') -> {
                         val divisor = parsePower()
@@ -102,31 +110,37 @@ object OfflineCalculator {
                         result / divisor
                     }
 
-                    else -> return result
+                    else ->
+                        return result
                 }
             }
         }
 
         private fun parsePower(): Double {
-            var result = parseUnary()
+            val base = parseUnary()
 
             skipSpaces()
 
-            if (match('^')) {
+            return if (match('^')) {
                 val exponent = parsePower()
-                result = result.pow(exponent)
+                base.pow(exponent)
+            } else {
+                base
             }
-
-            return result
         }
 
         private fun parseUnary(): Double {
             skipSpaces()
 
             return when {
-                match('+') -> parseUnary()
-                match('-') -> -parseUnary()
-                else -> parsePrimary()
+                match('+') ->
+                    parseUnary()
+
+                match('-') ->
+                    -parseUnary()
+
+                else ->
+                    parsePrimary()
             }
         }
 
@@ -153,7 +167,10 @@ object OfflineCalculator {
                 )
             }
 
-            if (input[position].isDigit() || input[position] == '.') {
+            if (
+                input[position].isDigit() ||
+                input[position] == '.'
+            ) {
                 return parseNumber()
             }
 
@@ -186,7 +203,6 @@ object OfflineCalculator {
 
         private fun parseNumber(): Double {
             val start = position
-
             var hasDigits = false
 
             while (
@@ -220,15 +236,19 @@ object OfflineCalculator {
 
             if (
                 position < input.length &&
-                (input[position] == 'e' ||
-                        input[position] == 'E')
+                (
+                    input[position] == 'e' ||
+                    input[position] == 'E'
+                )
             ) {
                 position++
 
                 if (
                     position < input.length &&
-                    (input[position] == '+' ||
-                            input[position] == '-')
+                    (
+                        input[position] == '+' ||
+                        input[position] == '-'
+                    )
                 ) {
                     position++
                 }
@@ -272,15 +292,15 @@ object OfflineCalculator {
                 .lowercase()
         }
 
-        private fun getConstant(
-            name: String
-        ): Double {
+        private fun getConstant(name: String): Double {
             return when (name) {
                 "pi" -> PI
                 "e" -> E
-                else -> throw IllegalArgumentException(
-                    "Unknown constant: $name"
-                )
+
+                else ->
+                    throw IllegalArgumentException(
+                        "Unknown constant: $name"
+                    )
             }
         }
 
@@ -301,19 +321,26 @@ object OfflineCalculator {
                     sqrt(value)
                 }
 
-                "abs" -> abs(value)
+                "abs" ->
+                    abs(value)
 
-                "sin" -> sin(Math.toRadians(value))
+                "sin" ->
+                    sin(Math.toRadians(value))
 
-                "cos" -> cos(Math.toRadians(value))
+                "cos" ->
+                    cos(Math.toRadians(value))
 
-                "tan" -> tan(Math.toRadians(value))
+                "tan" ->
+                    tan(Math.toRadians(value))
 
-                "asin" -> Math.toDegrees(asin(value))
+                "asin" ->
+                    Math.toDegrees(asin(value))
 
-                "acos" -> Math.toDegrees(acos(value))
+                "acos" ->
+                    Math.toDegrees(acos(value))
 
-                "atan" -> Math.toDegrees(atan(value))
+                "atan" ->
+                    Math.toDegrees(atan(value))
 
                 "log" -> {
                     if (value <= 0) {
@@ -335,17 +362,17 @@ object OfflineCalculator {
                     ln(value)
                 }
 
-                "exp" -> exp(value)
+                "exp" ->
+                    exp(value)
 
-                else -> throw IllegalArgumentException(
-                    "Unknown function: $name"
-                )
+                else ->
+                    throw IllegalArgumentException(
+                        "Unknown function: $name"
+                    )
             }
         }
 
-        private fun match(
-            character: Char
-        ): Boolean {
+        private fun match(character: Char): Boolean {
             skipSpaces()
 
             if (
@@ -366,18 +393,6 @@ object OfflineCalculator {
             ) {
                 position++
             }
-        }
-
-        private fun Double.pow(
-            exponent: Double
-        ): Double {
-            return this.powInternal(exponent)
-        }
-
-        private fun Double.powInternal(
-            exponent: Double
-        ): Double {
-            return kotlin.math.pow(this, exponent)
         }
     }
 }
