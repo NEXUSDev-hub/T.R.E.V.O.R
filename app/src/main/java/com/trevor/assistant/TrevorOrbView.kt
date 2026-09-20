@@ -102,6 +102,7 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
         private var normalBuffer: FloatBuffer? = null
         private var indexBuffer: ShortBuffer? = null
         private var indexCount = 0
+        private var indexVbo = 0
         private val model = FloatArray(16)
         private val view = FloatArray(16)
         private val projection = FloatArray(16)
@@ -223,6 +224,12 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
                 .order(ByteOrder.nativeOrder()).asShortBuffer()
                 .apply { indices.forEach { put(it) }; position(0) }
             indexCount = indices.size
+            val buffers = IntArray(1)
+            GLES20.glGenBuffers(1, buffers, 0)
+            indexVbo = buffers[0]
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, indexVbo)
+            GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, indices.size * 2, indexBuffer, GLES20.GL_STATIC_DRAW)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
         }
 
         private fun drawSphere() {
