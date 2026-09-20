@@ -414,109 +414,30 @@ private fun DashboardScreen(
 
     val scope = rememberCoroutineScope()
 
-    fun sendCommand(
-        command: String = input
-    ) {
-
-        if (busy) {
-            return
-        }
-
+    fun sendCommand(command: String = input) {
+        if (busy) return
         val clean = command.trim()
-
         if (clean.isBlank()) {
-
-            response =
-                "Please enter a command."
-
+            response = "Please enter a command."
             return
         }
 
         busy = true
         response = "Processing..."
 
-        val localResult =
-            TrevorLocalEngine.processCommand(
-                clean
-            )
-
-        when (localResult) {
-
-            is TrevorEngineResult.Answer -> {
-
-                response =
-                    localResult.text
-
-                busy = false
+        scope.launch {
+            when (val result = TrevorCore.process(
+                context = context,
+                command = clean,
+                aiEnabled = settings.aiEnabled,
+                geminiEnabled = settings.geminiEnabled,
+                conciseResponses = settings.conciseResponses,
+                technicalDetail = settings.technicalDetail
+            )) {
+                is TrevorCoreResult.Answer -> response = result.text
+                is TrevorCoreResult.Error -> response = result.message
             }
-
-            is TrevorEngineResult.Error -> {
-
-                response =
-                    localResult.message
-
-                busy = false
-            }
-
-            is TrevorEngineResult.NeedAI -> {
-
-                if (!settings.aiEnabled) {
-
-                    response =
-                        "AI is disabled. Enable AI in Settings."
-
-                    busy = false
-
-                    return
-                }
-
-                if (!settings.geminiEnabled) {
-
-                    response =
-                        "Gemini AI is disabled. Enable Gemini in Settings."
-
-                    busy = false
-
-                    return
-                }
-
-                val appContext =
-                    context.applicationContext
-
-                scope.launch {
-
-                    val key =
-                        SecureApiKeyStore.load(
-                            appContext
-                        )
-
-                    if (key.isNullOrBlank()) {
-
-                        response =
-                            "Gemini API key is not configured.\nOpen Settings → Gemini API Key."
-
-                        busy = false
-
-                        return@launch
-                    }
-
-                    val result =
-                        GeminiAiProvider.ask(
-                            apiKey = key,
-                            prompt = buildPrompt(
-                                clean,
-                                settings
-                            )
-                        )
-
-                    response =
-                        result.getOrElse {
-                            "Gemini request failed:\n${it.message ?: "Unknown error"}"
-                        }
-
-                    busy = false
-                }
-            }
+            busy = false
         }
     }
 
