@@ -4,9 +4,6 @@ import android.content.Context
 
 /**
  * Central application boundary for TREVOR request processing.
- *
- * UI code submits user intent here. Mode routing and runtime state changes
- * stay inside Core so future intelligence systems can plug in cleanly.
  */
 object TrevorCore {
 
@@ -38,12 +35,17 @@ object TrevorCore {
                 currentMode = resolvedMode,
                 requestState = TrevorRequestState.PROCESSING,
                 orbState = when (resolvedMode) {
+                    TrevorMode.NORMAL -> TrevorOrbState.THINKING
                     TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
                     TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
                     TrevorMode.PROJECT -> TrevorOrbState.THINKING
                     TrevorMode.RATIO_SHIFTER -> TrevorOrbState.THINKING
                 },
-                aiState = if (aiEnabled && geminiEnabled) TrevorAiState.READY else TrevorAiState.DISABLED,
+                aiState = if (aiEnabled && geminiEnabled) {
+                    TrevorAiState.READY
+                } else {
+                    TrevorAiState.DISABLED
+                },
                 lastError = null
             )
         }
@@ -95,13 +97,22 @@ object TrevorCore {
                 is TrevorCoreResult.Answer -> it.copy(
                     requestState = TrevorRequestState.SUCCESS,
                     orbState = TrevorOrbState.SUCCESS,
-                    aiState = if (it.aiState == TrevorAiState.PROCESSING) TrevorAiState.READY else it.aiState,
+                    aiState = if (it.aiState == TrevorAiState.PROCESSING) {
+                        TrevorAiState.READY
+                    } else {
+                        it.aiState
+                    },
                     lastError = null
                 )
+
                 is TrevorCoreResult.Error -> it.copy(
                     requestState = TrevorRequestState.ERROR,
                     orbState = TrevorOrbState.ERROR,
-                    aiState = if (it.aiState == TrevorAiState.PROCESSING) TrevorAiState.ERROR else it.aiState,
+                    aiState = if (it.aiState == TrevorAiState.PROCESSING) {
+                        TrevorAiState.ERROR
+                    } else {
+                        it.aiState
+                    },
                     lastError = result.message
                 )
             }
@@ -128,10 +139,29 @@ object TrevorCore {
             "Prefer simple explanations and avoid unnecessary technical detail."
         }
 
+        val modeInstruction = when (mode) {
+            TrevorMode.NORMAL ->
+                "Act as a general personal assistant. Answer naturally and conversationally."
+
+            TrevorMode.PROJECT ->
+                "Treat this as project work. Help plan, build, organize, debug, or reason through the project without requiring rigid command syntax."
+
+            TrevorMode.RESEARCH ->
+                "Treat this as research. Distinguish established facts, uncertainty, and claims that need sources. Do not pretend to have searched when no search tool was used."
+
+            TrevorMode.ANALYSE ->
+                "Treat this as analysis. Carefully inspect the supplied information, identify patterns, errors, assumptions, and useful conclusions."
+
+            TrevorMode.RATIO_SHIFTER ->
+                "Treat this as an interface/layout adaptation request. Focus on how TREVOR should reflow or adapt its presentation."
+        }
+
         return """
             You are TREVOR, The Riteshified Efficient Virtual Operation Robot.
 
             Operating mode: ${mode.name}
+
+            $modeInstruction
 
             User request:
             $input
