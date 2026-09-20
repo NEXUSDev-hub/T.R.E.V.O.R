@@ -1,56 +1,60 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.trevor.assistant
 
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeveloperMode
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Transform
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,22 +63,29 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.sin
 
-private enum class Screen {
-    DASHBOARD,
-    SETTINGS,
-    DEVELOPER,
-    API_KEY
+private enum class Screen { DASHBOARD, SETTINGS, DEVELOPER, API_KEY }
+
+private enum class Accent(val label: String, val color: Color) {
+    ICE("Ice Cyan", Color(0xFF58D9FF)),
+    SKY("Polar Sky", Color(0xFF5B8CFF)),
+    VIOLET("Aurora Violet", Color(0xFF9B7BFF));
+    companion object {
+        fun from(value: String): Accent = entries.firstOrNull { it.name == value } ?: ICE
+    }
 }
 
 private data class TrevorSettings(
@@ -91,302 +102,166 @@ private data class TrevorSettings(
     val showQuickActions: Boolean = true,
     val offlineFirst: Boolean = true,
     val secureStorage: Boolean = true,
-    val localApiKeyEncryption: Boolean = true
+    val localApiKeyEncryption: Boolean = true,
+    val iceFrost: Boolean = true,
+    val accent: Accent = Accent.ICE
 )
 
 private object TrevorSettingsStore {
-
     private const val PREFS = "trevor_settings"
 
     fun load(context: Context): TrevorSettings {
-
-        val prefs = context.getSharedPreferences(
-            PREFS,
-            Context.MODE_PRIVATE
-        )
-
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return TrevorSettings(
-            aiEnabled = prefs.getBoolean(
-                "aiEnabled",
-                true
-            ),
-
-            geminiEnabled = prefs.getBoolean(
-                "geminiEnabled",
-                true
-            ),
-
-            orbEnabled = prefs.getBoolean(
-                "orbEnabled",
-                true
-            ),
-
-            developerMode = prefs.getBoolean(
-                "developerMode",
-                false
-            ),
-
-            debugMode = prefs.getBoolean(
-                "debugMode",
-                false
-            ),
-
-            developerConsole = prefs.getBoolean(
-                "developerConsole",
-                false
-            ),
-
-            animations = prefs.getBoolean(
-                "animations",
-                true
-            ),
-
-            conciseResponses = prefs.getBoolean(
-                "conciseResponses",
-                true
-            ),
-
-            technicalDetail = prefs.getBoolean(
-                "technicalDetail",
-                true
-            ),
-
-            showStatusIndicators = prefs.getBoolean(
-                "showStatusIndicators",
-                true
-            ),
-
-            showQuickActions = prefs.getBoolean(
-                "showQuickActions",
-                true
-            ),
-
-            offlineFirst = prefs.getBoolean(
-                "offlineFirst",
-                true
-            ),
-
-            secureStorage = prefs.getBoolean(
-                "secureStorage",
-                true
-            ),
-
-            localApiKeyEncryption = prefs.getBoolean(
-                "localApiKeyEncryption",
-                true
-            )
+            aiEnabled = p.getBoolean("aiEnabled", true),
+            geminiEnabled = p.getBoolean("geminiEnabled", true),
+            orbEnabled = p.getBoolean("orbEnabled", true),
+            developerMode = p.getBoolean("developerMode", false),
+            debugMode = p.getBoolean("debugMode", false),
+            developerConsole = p.getBoolean("developerConsole", false),
+            animations = p.getBoolean("animations", true),
+            conciseResponses = p.getBoolean("conciseResponses", true),
+            technicalDetail = p.getBoolean("technicalDetail", true),
+            showStatusIndicators = p.getBoolean("showStatusIndicators", true),
+            showQuickActions = p.getBoolean("showQuickActions", true),
+            offlineFirst = p.getBoolean("offlineFirst", true),
+            secureStorage = p.getBoolean("secureStorage", true),
+            localApiKeyEncryption = p.getBoolean("localApiKeyEncryption", true),
+            iceFrost = p.getBoolean("iceFrost", true),
+            accent = Accent.from(p.getString("accent", Accent.ICE.name) ?: Accent.ICE.name)
         )
     }
 
-    fun save(
-        context: Context,
-        settings: TrevorSettings
-    ) {
-
-        context
-            .getSharedPreferences(
-                PREFS,
-                Context.MODE_PRIVATE
-            )
-            .edit()
-            .putBoolean(
-                "aiEnabled",
-                settings.aiEnabled
-            )
-            .putBoolean(
-                "geminiEnabled",
-                settings.geminiEnabled
-            )
-            .putBoolean(
-                "orbEnabled",
-                settings.orbEnabled
-            )
-            .putBoolean(
-                "developerMode",
-                settings.developerMode
-            )
-            .putBoolean(
-                "debugMode",
-                settings.debugMode
-            )
-            .putBoolean(
-                "developerConsole",
-                settings.developerConsole
-            )
-            .putBoolean(
-                "animations",
-                settings.animations
-            )
-            .putBoolean(
-                "conciseResponses",
-                settings.conciseResponses
-            )
-            .putBoolean(
-                "technicalDetail",
-                settings.technicalDetail
-            )
-            .putBoolean(
-                "showStatusIndicators",
-                settings.showStatusIndicators
-            )
-            .putBoolean(
-                "showQuickActions",
-                settings.showQuickActions
-            )
-            .putBoolean(
-                "offlineFirst",
-                settings.offlineFirst
-            )
-            .putBoolean(
-                "secureStorage",
-                settings.secureStorage
-            )
-            .putBoolean(
-                "localApiKeyEncryption",
-                settings.localApiKeyEncryption
-            )
+    fun save(context: Context, s: TrevorSettings) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("aiEnabled", s.aiEnabled)
+            .putBoolean("geminiEnabled", s.geminiEnabled)
+            .putBoolean("orbEnabled", s.orbEnabled)
+            .putBoolean("developerMode", s.developerMode)
+            .putBoolean("debugMode", s.debugMode)
+            .putBoolean("developerConsole", s.developerConsole)
+            .putBoolean("animations", s.animations)
+            .putBoolean("conciseResponses", s.conciseResponses)
+            .putBoolean("technicalDetail", s.technicalDetail)
+            .putBoolean("showStatusIndicators", s.showStatusIndicators)
+            .putBoolean("showQuickActions", s.showQuickActions)
+            .putBoolean("offlineFirst", s.offlineFirst)
+            .putBoolean("secureStorage", s.secureStorage)
+            .putBoolean("localApiKeyEncryption", s.localApiKeyEncryption)
+            .putBoolean("iceFrost", s.iceFrost)
+            .putString("accent", s.accent.name)
             .apply()
-    }
-
-    fun defaults(context: Context) {
-        save(
-            context,
-            TrevorSettings()
-        )
     }
 }
 
-class MainActivity : ComponentActivity() {
+private data class SelectedFile(
+    val uri: Uri,
+    val name: String,
+    val mime: String,
+    val size: Long?,
+    val extractedText: String?
+)
 
-    private var selectedFileUri: Uri? = null
+class MainActivity : ComponentActivity() {
+    private var selectedFile by mutableStateOf<SelectedFile?>(null)
 
     private val filePicker =
-        registerForActivityResult(
-            ActivityResultContracts.GetContent()
-        ) { uri ->
-
-            selectedFileUri = uri
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) selectedFile = inspectFile(this, uri)
         }
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
-
             TrevorApp(
                 context = this,
-                filePicker = {
-                    filePicker.launch("*/*")
-                }
+                onPickFile = { filePicker.launch(arrayOf("*/*")) },
+                selectedFile = selectedFile,
+                onRemoveFile = { selectedFile = null }
             )
         }
     }
+}
+
+private fun inspectFile(context: Context, uri: Uri): SelectedFile {
+    val resolver = context.contentResolver
+    var name = "Selected file"
+    var size: Long? = null
+
+    resolver.query(
+        uri,
+        arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+        null,
+        null,
+        null
+    )?.use { c ->
+        if (c.moveToFirst()) {
+            val nameIndex = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = c.getColumnIndex(OpenableColumns.SIZE)
+            if (nameIndex >= 0) name = c.getString(nameIndex) ?: name
+            if (sizeIndex >= 0 && !c.isNull(sizeIndex)) size = c.getLong(sizeIndex)
+        }
+    }
+
+    val mime = resolver.getType(uri) ?: "application/octet-stream"
+    val textLike = mime.startsWith("text/") ||
+        mime.contains("json") ||
+        mime.contains("xml") ||
+        name.endsWith(".kt", true) ||
+        name.endsWith(".java", true) ||
+        name.endsWith(".py", true) ||
+        name.endsWith(".md", true) ||
+        name.endsWith(".csv", true)
+
+    val extracted = if (textLike) {
+        runCatching {
+            resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(200_000) }
+        }.getOrNull()
+    } else {
+        null
+    }
+
+    return SelectedFile(uri, name, mime, size, extracted)
 }
 
 @Composable
 private fun TrevorApp(
     context: Context,
-    filePicker: () -> Unit
+    onPickFile: () -> Unit,
+    selectedFile: SelectedFile?,
+    onRemoveFile: () -> Unit
 ) {
+    var screen by remember { mutableStateOf(Screen.DASHBOARD) }
+    var settings by remember { mutableStateOf(TrevorSettingsStore.load(context)) }
 
-    var screen by remember {
-        mutableStateOf(
-            Screen.DASHBOARD
-        )
+    BackHandler(enabled = screen != Screen.DASHBOARD) {
+        screen = if (screen == Screen.API_KEY) Screen.SETTINGS else Screen.DASHBOARD
     }
 
-    var settings by remember {
-        mutableStateOf(
-            TrevorSettingsStore.load(context)
-        )
-    }
-
-    fun updateSettings(
-        newSettings: TrevorSettings
-    ) {
-
-        settings = newSettings
-
-        TrevorSettingsStore.save(
-            context,
-            newSettings
-        )
+    fun updateSettings(value: TrevorSettings) {
+        settings = value
+        TrevorSettingsStore.save(context, value)
     }
 
     when (screen) {
-
-        Screen.DASHBOARD -> {
-
-            DashboardScreen(
-                context = context,
-                settings = settings,
-
-                onSettings = {
-                    screen = Screen.SETTINGS
-                },
-
-                onDeveloper = {
-                    screen = Screen.DEVELOPER
-                },
-
-                onFilePicker = filePicker
-            )
-        }
-
-        Screen.SETTINGS -> {
-
-            SettingsScreen(
-                settings = settings,
-
-                onBack = {
-                    screen = Screen.DASHBOARD
-                },
-
-                onApiKey = {
-                    screen = Screen.API_KEY
-                },
-
-                onDeveloper = {
-                    screen = Screen.DEVELOPER
-                },
-
-                onChange = ::updateSettings,
-
-                onRestoreDefaults = {
-
-                    TrevorSettingsStore.defaults(
-                        context
-                    )
-
-                    settings = TrevorSettings()
-                }
-            )
-        }
-
-        Screen.DEVELOPER -> {
-
-            DeveloperScreen(
-                context = context,
-                settings = settings,
-
-                onBack = {
-                    screen = Screen.DASHBOARD
-                }
-            )
-        }
-
-        Screen.API_KEY -> {
-
-            ApiKeyScreen(
-                context = context,
-
-                onBack = {
-                    screen = Screen.SETTINGS
-                }
-            )
-        }
+        Screen.DASHBOARD -> DashboardScreen(
+            context = context,
+            settings = settings,
+            onPickFile = onPickFile,
+            selectedFile = selectedFile,
+            onRemoveFile = onRemoveFile,
+            onSettings = { screen = Screen.SETTINGS },
+            onDeveloper = { screen = Screen.DEVELOPER }
+        )
+        Screen.SETTINGS -> SettingsScreen(
+            settings = settings,
+            onChange = ::updateSettings,
+            onBack = { screen = Screen.DASHBOARD },
+            onApiKey = { screen = Screen.API_KEY },
+            onDeveloper = { screen = Screen.DEVELOPER }
+        )
+        Screen.DEVELOPER -> DeveloperScreen(context, settings) { screen = Screen.DASHBOARD }
+        Screen.API_KEY -> ApiKeyScreen(context) { screen = Screen.SETTINGS }
     }
 }
 
@@ -394,857 +269,355 @@ private fun TrevorApp(
 private fun DashboardScreen(
     context: Context,
     settings: TrevorSettings,
+    onPickFile: () -> Unit,
+    selectedFile: SelectedFile?,
+    onRemoveFile: () -> Unit,
     onSettings: () -> Unit,
-    onDeveloper: () -> Unit,
-    onFilePicker: () -> Unit
+    onDeveloper: () -> Unit
 ) {
-
-    var input by remember {
-        mutableStateOf("")
-    }
-
-    var response by remember {
-        mutableStateOf(
-            "TREVOR online.\nAsk me something."
-        )
-    }
-
-    var busy by remember {
-        mutableStateOf(false)
-    }
-
+    var input by remember { mutableStateOf("") }
+    var mode by remember { mutableStateOf(TrevorMode.NORMAL) }
+    var status by remember { mutableStateOf("READY") }
+    var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val palette = settings.accent.color
 
-    fun sendCommand(command: String = input) {
-        if (busy) return
-        val clean = command.trim()
-        if (clean.isBlank()) {
-            response = "Please enter a command."
-            return
-        }
-
+    fun send() {
+        val clean = input.trim()
+        if (clean.isBlank() || busy) return
         busy = true
-        response = "Processing..."
-
+        status = "PROCESSING • " + mode.name
         scope.launch {
-            when (val result = TrevorCore.process(
+            val result = TrevorCore.process(
                 context = context,
                 command = clean,
                 aiEnabled = settings.aiEnabled,
                 geminiEnabled = settings.geminiEnabled,
                 conciseResponses = settings.conciseResponses,
-                technicalDetail = settings.technicalDetail
-            )) {
-                is TrevorCoreResult.Answer -> response = result.text
-                is TrevorCoreResult.Error -> response = result.message
+                technicalDetail = settings.technicalDetail,
+                mode = mode.takeUnless { it == TrevorMode.NORMAL }
+            )
+            status = when (result) {
+                is TrevorCoreResult.Answer -> "READY • " + mode.name
+                is TrevorCoreResult.Error -> "ERROR • " + result.message.lines().firstOrNull().orEmpty()
             }
             busy = false
         }
     }
 
-    Scaffold(
+    val infinite = rememberInfiniteTransition(label = "orbit")
+    val orbitAngle by infinite.animateFloat(
+        0f,
+        360f,
+        infiniteRepeatable(tween(24_000, easing = LinearEasing)),
+        label = "orbitAngle"
+    )
 
-        topBar = {
-
-            TopAppBar(
-
-                title = {
-
-                    Column {
-
-                        Text(
-                            text = "T.R.E.V.O.R",
-                            fontWeight =
-                                FontWeight.Bold,
-                            color = Color(0xFF73DFFF)
-                        )
-
-                        if (
-                            settings.showStatusIndicators
-                        ) {
-
-                            Text(
-                                text =
-                                    TrevorVersion.label(context) + " • " +
-                                        if (busy) { "THINKING" } else { "ONLINE" },
-                                fontSize = 11.sp,
-                                color = Color(0xFF91AEBB)
-                            )
-                        }
-                    }
-                },
-
-                actions = {
-
-                    if (
-                        settings.developerMode ||
-                        settings.debugMode
-                    ) {
-
-                        IconButton(
-                            onClick =
-                                onDeveloper
-                        ) {
-
-                            Icon(
-                                imageVector =
-                                    Icons.Filled.DeveloperMode,
-                                contentDescription =
-                                    "Developer Mode"
-                            )
-                        }
-                    }
-
-                    IconButton(
-                        onClick =
-                            onSettings
-                    ) {
-
-                        Icon(
-                            imageVector =
-                                Icons.Filled.Settings,
-                            contentDescription =
-                                "Settings"
-                        )
-                    }
-                },
-
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xCC071A26)
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    listOf(
+                        Color(0xFFF9FEFF),
+                        Color(0xFFE8F7FB),
+                        Color(0xFFD7EEF4),
+                        Color(0xFFC7E3EA)
                     )
+                )
             )
-        }
+    ) {
+        Column(Modifier.fillMaxSize().padding(14.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "T.R.E.V.O.R",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF173A48)
+                    )
+                    Text(
+                        "The Really Efficient Virtual Operation Robot",
+                        fontSize = 11.sp,
+                        color = Color(0xFF55727D)
+                    )
+                    if (settings.showStatusIndicators) {
+                        Text(
+                            TrevorVersion.label(context) + "  •  " + status,
+                            fontSize = 10.sp,
+                            color = palette,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                if (settings.developerMode || settings.debugMode) {
+                    IconButton(onClick = onDeveloper) {
+                        Icon(Icons.Filled.DeveloperMode, "Developer mode", tint = Color(0xFF31515D))
+                    }
+                }
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Filled.Settings, "Settings", tint = Color(0xFF31515D))
+                }
+            }
 
-    ) { padding ->
-
-        Column(
-
-            modifier =
+            BoxWithConstraints(
                 Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFF04131D),
-                                Color(0xFF082333),
-                                Color(0xFF04131D)
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(38.dp))
+            ) {
+                if (settings.orbEnabled) {
+                    GlassPanel(
+                        Modifier.align(Alignment.Center).size(250.dp),
+                        alpha = 0.22f
+                    ) {
+                        Box(Modifier.fillMaxSize()) {
+                            var orbView by remember { mutableStateOf<TrevorOrbView?>(null) }
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize().padding(10.dp).clip(CircleShape),
+                                factory = { ctx ->
+                                    TrevorOrbView(ctx).also { orbView = it }.apply {
+                                        setAccent(palette.toArgb())
+                                        setAnimated(settings.animations)
+                                    }
+                                },
+                                update = {
+                                    orbView = it
+                                    it.setAccent(palette.toArgb())
+                                    it.setAnimated(settings.animations)
+                                    it.setState(if (busy) TrevorOrbState.THINKING else TrevorOrbState.IDLE)
+                                }
                             )
-                        )
-                    )
-                    .padding(padding)
-                    .padding(16.dp),
-
-            horizontalAlignment =
-                Alignment.CenterHorizontally
-        ) {
-
-            if (settings.orbEnabled) {
-
-                TrevorOrb(
-                    modifier =
-                        Modifier
-                            .size(190.dp)
-                            .padding(8.dp)
-                )
-
-                Spacer(
-                    modifier =
-                        Modifier.height(12.dp)
-                )
-            }
-
-            if (settings.showQuickActions) {
-
-                Row(
-
-                    modifier =
-                        Modifier.fillMaxWidth(),
-
-                    horizontalArrangement =
-                        Arrangement.spacedBy(8.dp)
-                ) {
-
-                    QuickButton(
-                        modifier =
-                            Modifier.weight(1f),
-                        text = "Calculate",
-                        icon =
-                            Icons.Filled.Calculate
-                    ) {
-
-                        input =
-                            "calculate "
+                            IconButton(
+                                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(42.dp),
+                                onClick = { orbView?.resetView() }
+                            ) {
+                                Icon(Icons.Filled.Refresh, "Reset Orb", tint = palette)
+                            }
+                        }
                     }
 
-                    QuickButton(
-                        modifier =
-                            Modifier.weight(1f),
-                        text = "Define",
-                        icon =
-                            Icons.Filled.Info
-                    ) {
-
-                        input =
-                            "define "
-                    }
-
-                    QuickButton(
-                        modifier =
-                            Modifier.weight(1f),
-                        text = "File",
-                        icon =
-                            Icons.Filled.AttachFile
-                    ) {
-
-                        onFilePicker()
-                    }
+                    OrbitMode("ANALYSE", Icons.Filled.Analytics, TrevorMode.ANALYSE, orbitAngle, 0f, palette, mode == TrevorMode.ANALYSE) { mode = TrevorMode.ANALYSE }
+                    OrbitMode("RESEARCH", Icons.Filled.Science, TrevorMode.RESEARCH, orbitAngle, 90f, palette, mode == TrevorMode.RESEARCH) { mode = TrevorMode.RESEARCH }
+                    OrbitMode("PROJECT", Icons.Filled.Folder, TrevorMode.PROJECT, orbitAngle, 180f, palette, mode == TrevorMode.PROJECT) { mode = TrevorMode.PROJECT }
+                    OrbitMode("RATIO SHIFTER", Icons.Filled.Transform, TrevorMode.RATIO_SHIFTER, orbitAngle, 270f, palette, mode == TrevorMode.RATIO_SHIFTER) { mode = TrevorMode.RATIO_SHIFTER }
                 }
 
-                Spacer(
-                    modifier =
-                        Modifier.height(12.dp)
-                )
+                GlassPanel(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 6.dp),
+                    alpha = 0.44f
+                ) {
+                    Text(modeDescription(mode), color = Color(0xFF294A55), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
             }
 
-            Card(
-
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor =
-                            MaterialTheme
-                                .colorScheme
-                                .surfaceVariant
-                    )
-            ) {
-
-                LazyColumn(
-
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                ) {
-
-                    item {
-
-                        Text(
-                            text = "TREVOR",
-                            fontWeight =
-                                FontWeight.Bold,
-                            color =
-                                MaterialTheme
-                                    .colorScheme
-                                    .primary
-                        )
-
-                        Spacer(
-                            modifier =
-                                Modifier.height(8.dp)
-                        )
-
-                        Text(
-                            text = response,
-                            fontSize = 16.sp
-                        )
+            selectedFile?.let { file ->
+                GlassPanel(Modifier.fillMaxWidth().padding(bottom = 8.dp), alpha = 0.55f) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.AttachFile, null, tint = palette)
+                        Column(Modifier.weight(1f)) {
+                            Text(file.name, fontWeight = FontWeight.SemiBold, color = Color(0xFF183944), maxLines = 1)
+                            Text(
+                                if (file.extractedText != null) "Validated • text extracted" else "Validated • attachment ready",
+                                fontSize = 10.sp,
+                                color = Color(0xFF5B737B)
+                            )
+                        }
+                        IconButton(onClick = onRemoveFile) {
+                            Icon(Icons.Filled.Close, "Remove file", tint = Color(0xFF526B73))
+                        }
                     }
                 }
             }
 
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp)
-            )
-
-            Row(
-
-                modifier =
-                    Modifier.fillMaxWidth(),
-
-                verticalAlignment =
-                    Alignment.CenterVertically
-            ) {
-
-                OutlinedTextField(
-
-                    value = input,
-
-                    onValueChange = {
-                        input = it
-                    },
-
-                    modifier =
-                        Modifier.weight(1f),
-
-                    placeholder = {
-                        Text("Ask TREVOR...")
-                    },
-
-                    singleLine = false
-                )
-
-                Spacer(
-                    modifier =
-                        Modifier.width(8.dp)
-                )
-
-                IconButton(
-
-                    onClick = {
-                        sendCommand()
-                    },
-
-                    enabled = !busy
-                ) {
-
-                    Icon(
-                        imageVector =
-                            Icons.Filled.Send,
-                        contentDescription =
-                            "Send"
+            GlassPanel(Modifier.fillMaxWidth(), alpha = 0.70f) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    IconButton(onClick = onPickFile, enabled = !busy) {
+                        Icon(Icons.Filled.AttachFile, "Inject file", tint = palette)
+                    }
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Command TREVOR…", color = Color(0xFF69818A)) },
+                        maxLines = 4,
+                        shape = RoundedCornerShape(28.dp)
                     )
+                    IconButton(onClick = { input = "" }, enabled = input.isNotEmpty()) {
+                        Icon(Icons.Filled.Refresh, "Clear input", tint = Color(0xFF58727B))
+                    }
+                    IconButton(onClick = { send() }, enabled = input.isNotBlank() && !busy) {
+                        Icon(Icons.Filled.Send, "Send", tint = palette)
+                    }
                 }
             }
         }
     }
 }
 
-private fun buildPrompt(
-    input: String,
-    settings: TrevorSettings
-): String {
-
-    val responseStyle =
-        if (settings.conciseResponses) {
-
-            "Keep responses concise while still answering correctly."
-
-        } else {
-
-            "Give a reasonably detailed response."
-        }
-
-    val technicalStyle =
-        if (settings.technicalDetail) {
-
-            "Technical details are welcome when useful."
-
-        } else {
-
-            "Prefer simple explanations and avoid unnecessary technical detail."
-        }
-
-    return """
-        You are TREVOR, The Riteshified Efficient Virtual Operation Robot.
-
-        User request:
-        $input
-
-        $responseStyle
-        $technicalStyle
-
-        Never claim that an action was performed unless it was actually performed and verified.
-    """.trimIndent()
+private fun modeDescription(mode: TrevorMode): String = when (mode) {
+    TrevorMode.NORMAL -> "NORMAL • conversational fallback"
+    TrevorMode.ANALYSE -> "ANALYSE • inspect maths, science, code, data and files"
+    TrevorMode.RESEARCH -> "RESEARCH • investigate information, sources and comparisons"
+    TrevorMode.PROJECT -> "PROJECT • plan, build, organise and track work"
+    TrevorMode.RATIO_SHIFTER -> "RATIO SHIFTER • adapt layout and transform proportional values"
 }
 
 @Composable
-private fun QuickButton(
-    modifier: Modifier,
-    text: String,
-    icon: ImageVector,
+private fun OrbitMode(
+    name: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    mode: TrevorMode,
+    angle: Float,
+    phase: Float,
+    accent: Color,
+    selected: Boolean,
     onClick: () -> Unit
 ) {
+    val radians = Math.toRadians((angle + phase).toDouble())
+    val radius = 138f
+    val x = (cos(radians) * radius).toInt()
+    val y = (sin(radians) * radius).toInt()
 
-    OutlinedButton(
-
-        modifier = modifier,
-
-        onClick = onClick
+    GlassPanel(
+        Modifier
+            .align(Alignment.Center)
+            .offset { IntOffset(x, y) }
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick),
+        alpha = if (selected) 0.82f else 0.58f,
+        borderColor = if (selected) accent else Color.White.copy(alpha = 0.65f)
     ) {
-
-        Icon(
-            imageVector = icon,
-            contentDescription = text
-        )
-
-        Spacer(
-            modifier =
-                Modifier.width(4.dp)
-        )
-
-        Text(text)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = accent, modifier = Modifier.size(19.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF24444E))
+        }
     }
 }
 
 @Composable
-private fun TrevorOrb(
-    modifier: Modifier = Modifier
+private fun GlassPanel(
+    modifier: Modifier = Modifier,
+    alpha: Float = 0.5f,
+    borderColor: Color = Color.White.copy(alpha = 0.8f),
+    content: @Composable () -> Unit
 ) {
     Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
+        modifier
+            .clip(RoundedCornerShape(30.dp))
+            .background(Color.White.copy(alpha = alpha))
+            .border(1.dp, borderColor, RoundedCornerShape(30.dp))
+            .padding(10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            Color.White,
-                            Color(0xFF73DFFF),
-                            Color(0xFF0A4058),
-                            Color(0xFF04131D)
-                        )
-                    )
-                )
-                .border(2.dp, Color(0xFF73DFFF), CircleShape)
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(10.dp)
-                .border(1.dp, Color(0x6673DFFF), CircleShape)
-        )
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF9BEFFF))
-                .border(2.dp, Color.White, CircleShape)
-        )
-        Text(
-            text = "CORE",
-            color = Color(0xFF04131D),
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp
-        )
+        content()
     }
 }
 
 @Composable
 private fun SettingsScreen(
     settings: TrevorSettings,
+    onChange: (TrevorSettings) -> Unit,
     onBack: () -> Unit,
     onApiKey: () -> Unit,
-    onDeveloper: () -> Unit,
-    onChange: (TrevorSettings) -> Unit,
-    onRestoreDefaults: () -> Unit
+    onDeveloper: () -> Unit
 ) {
-
-    Scaffold(
-
-        topBar = {
-
-            TopAppBar(
-
-                title = {
-                    Text("Settings")
-                },
-
-                navigationIcon = {
-
-                    IconButton(
-                        onClick =
-                            onBack
-                    ) {
-
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription =
-                                "Back"
-                        )
-                    }
-                }
-            )
+    val palette = settings.accent.color
+    IceScreen {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
+            }
+            Text("Settings", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF173A48))
         }
 
-    ) { padding ->
-
-        LazyColumn(
-
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-
-            verticalArrangement =
-                Arrangement.spacedBy(8.dp)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-
-            item {
-
-                Text(
-                    text = "AI ENGINE",
-                    fontWeight =
-                        FontWeight.Bold
-                )
-            }
-
-            item {
-
-                SettingSwitch(
-                    title = "AI Enabled",
-                    checked =
-                        settings.aiEnabled
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            aiEnabled = it
+            SettingsSection("INTERFACE", palette) {
+                SettingSwitch("Ice-Frost holographic theme", settings.iceFrost, { onChange(settings.copy(iceFrost = it)) }, palette)
+                Text("Accent colour", color = Color(0xFF42606A), fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Accent.entries.forEach { accent ->
+                        Box(
+                            Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(accent.color)
+                                .border(
+                                    if (accent == settings.accent) 4.dp else 1.dp,
+                                    Color.White,
+                                    CircleShape
+                                )
+                                .clickable { onChange(settings.copy(accent = accent)) }
                         )
-                    )
-                }
-            }
-
-            item {
-
-                SettingSwitch(
-                    title = "Gemini AI",
-                    checked =
-                        settings.geminiEnabled
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            geminiEnabled = it
-                        )
-                    )
-                }
-            }
-
-            item {
-
-                SettingButton(
-                    title =
-                        "Gemini API Key",
-                    icon =
-                        Icons.Filled.SmartToy,
-                    onClick =
-                        onApiKey
-                )
-            }
-
-            item {
-                HorizontalDivider()
-            }
-
-            item {
-
-                Text(
-                    text =
-                        "ORBITAL CORE",
-                    fontWeight =
-                        FontWeight.Bold
-                )
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Orb Enabled",
-                    checked =
-                        settings.orbEnabled
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            orbEnabled = it
-                        )
-                    )
-                }
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Animations",
-                    checked =
-                        settings.animations
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            animations = it
-                        )
-                    )
-                }
-            }
-
-            item {
-                HorizontalDivider()
-            }
-
-            item {
-
-                Text(
-                    text = "DISPLAY",
-                    fontWeight =
-                        FontWeight.Bold
-                )
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Show Status Indicators",
-                    checked =
-                        settings.showStatusIndicators
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            showStatusIndicators = it
-                        )
-                    )
-                }
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Show Quick Actions",
-                    checked =
-                        settings.showQuickActions
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            showQuickActions = it
-                        )
-                    )
-                }
-            }
-
-            item {
-                HorizontalDivider()
-            }
-
-            item {
-
-                Text(
-                    text =
-                        "RESPONSES",
-                    fontWeight =
-                        FontWeight.Bold
-                )
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Concise Responses",
-                    checked =
-                        settings.conciseResponses
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            conciseResponses = it
-                        )
-                    )
-                }
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Technical Detail",
-                    checked =
-                        settings.technicalDetail
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            technicalDetail = it
-                        )
-                    )
-                }
-            }
-
-            item {
-                HorizontalDivider()
-            }
-
-            item {
-
-                Text(
-                    text =
-                        "DEVELOPER",
-                    fontWeight =
-                        FontWeight.Bold
-                )
-            }
-
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Developer Mode",
-                    checked =
-                        settings.developerMode
-                ) {
-
-                    val updated =
-                        settings.copy(
-                            developerMode = it
-                        )
-
-                    onChange(updated)
-
-                    if (it) {
-                        onDeveloper()
                     }
                 }
+                Text(settings.accent.label + " selected", color = palette, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             }
 
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Debug Mode",
-                    checked =
-                        settings.debugMode
-                ) {
-
-                    val updated =
-                        settings.copy(
-                            debugMode = it
-                        )
-
-                    onChange(updated)
-
-                    if (it) {
-                        onDeveloper()
-                    }
-                }
+            SettingsSection("ORBIT", palette) {
+                SettingSwitch("3D Orb enabled", settings.orbEnabled, { onChange(settings.copy(orbEnabled = it)) }, palette)
+                SettingSwitch("Orb animation", settings.animations, { onChange(settings.copy(animations = it)) }, palette)
             }
 
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Developer Console",
-                    checked =
-                        settings.developerConsole
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            developerConsole = it
-                        )
-                    )
-                }
+            SettingsSection("AI", palette) {
+                SettingSwitch("AI enabled", settings.aiEnabled, { onChange(settings.copy(aiEnabled = it)) }, palette)
+                SettingSwitch("Gemini enabled", settings.geminiEnabled, { onChange(settings.copy(geminiEnabled = it)) }, palette)
+                SettingButton("Gemini API Key", Icons.Filled.SmartToy, onApiKey, palette)
             }
 
-            item {
-                HorizontalDivider()
+            SettingsSection("DISPLAY", palette) {
+                SettingSwitch("Status indicators", settings.showStatusIndicators, { onChange(settings.copy(showStatusIndicators = it)) }, palette)
             }
 
-            item {
-
-                Text(
-                    text =
-                        "STORAGE & NETWORK",
-                    fontWeight =
-                        FontWeight.Bold
-                )
+            SettingsSection("RESPONSES", palette) {
+                SettingSwitch("Concise responses", settings.conciseResponses, { onChange(settings.copy(conciseResponses = it)) }, palette)
+                SettingSwitch("Technical detail", settings.technicalDetail, { onChange(settings.copy(technicalDetail = it)) }, palette)
             }
 
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Offline First",
-                    checked =
-                        settings.offlineFirst
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            offlineFirst = it
-                        )
-                    )
-                }
+            SettingsSection("SECURITY & STORAGE", palette) {
+                SettingSwitch("Offline first", settings.offlineFirst, { onChange(settings.copy(offlineFirst = it)) }, palette)
+                SettingSwitch("Secure storage", settings.secureStorage, { onChange(settings.copy(secureStorage = it)) }, palette)
+                SettingSwitch("Local API-key encryption", settings.localApiKeyEncryption, { onChange(settings.copy(localApiKeyEncryption = it)) }, palette)
             }
 
-            item {
-
-                SettingSwitch(
-                    title =
-                        "Secure Storage",
-                    checked =
-                        settings.secureStorage
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            secureStorage = it
-                        )
-                    )
-                }
+            SettingsSection("DEVELOPER", palette) {
+                SettingSwitch("Developer mode", settings.developerMode, { onChange(settings.copy(developerMode = it)); if (it) onDeveloper() }, palette)
+                SettingSwitch("Debug mode", settings.debugMode, { onChange(settings.copy(debugMode = it)); if (it) onDeveloper() }, palette)
+                SettingSwitch("Developer console", settings.developerConsole, { onChange(settings.copy(developerConsole = it)) }, palette)
             }
+        }
+    }
+}
 
-            item {
+@Composable
+private fun IceScreen(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFFF9FEFF), Color(0xFFE4F5F9), Color(0xFFD2EAF0))))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        content = content
+    )
+}
 
-                SettingSwitch(
-                    title =
-                        "Local API Key Encryption",
-                    checked =
-                        settings.localApiKeyEncryption
-                ) {
-
-                    onChange(
-                        settings.copy(
-                            localApiKeyEncryption = it
-                        )
-                    )
-                }
-            }
-
-            item {
-
-                Spacer(
-                    modifier =
-                        Modifier.height(8.dp)
-                )
-
-                Button(
-
-                    modifier =
-                        Modifier.fillMaxWidth(),
-
-                    onClick =
-                        onRestoreDefaults
-                ) {
-
-                    Icon(
-                        Icons.Filled.Refresh,
-                        contentDescription =
-                            null
-                    )
-
-                    Spacer(
-                        Modifier.width(8.dp)
-                    )
-
-                    Text(
-                        "Restore Defaults"
-                    )
-                }
-            }
+@Composable
+private fun SettingsSection(
+    title: String,
+    accent: Color,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    GlassPanel(
+        Modifier.fillMaxWidth(),
+        alpha = 0.66f,
+        borderColor = accent.copy(alpha = 0.28f)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(title, color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            content()
         }
     }
 }
@@ -1253,483 +626,117 @@ private fun SettingsScreen(
 private fun SettingSwitch(
     title: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    accent: Color
 ) {
-
-    Card(
-
-        modifier =
-            Modifier.fillMaxWidth()
-    ) {
-
-        Row(
-
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-
-            Text(
-                text = title,
-                modifier =
-                    Modifier.weight(1f)
-            )
-
-            Switch(
-                checked =
-                    checked,
-                onCheckedChange =
-                    onCheckedChange
-            )
-        }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, Modifier.weight(1f), color = Color(0xFF2B4A54), fontSize = 14.sp)
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
 private fun SettingButton(
     title: String,
-    icon: ImageVector,
-    onClick: () -> Unit
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    accent: Color
 ) {
-
-    Card(
-
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable {
-                    onClick()
-                }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White.copy(alpha = 0.5f))
+            .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-
-        Row(
-
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-
-            Icon(
-                imageVector =
-                    icon,
-                contentDescription =
-                    null
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.width(12.dp)
-            )
-
-            Text(
-                text = title,
-                modifier =
-                    Modifier.weight(1f)
-            )
-        }
+        Icon(icon, null, tint = accent)
+        Spacer(Modifier.width(10.dp))
+        Text(title, color = Color(0xFF294A55))
     }
 }
 
 @Composable
-private fun DeveloperScreen(
-    context: Context,
-    settings: TrevorSettings,
-    onBack: () -> Unit
-) {
-
-    Scaffold(
-
-        topBar = {
-
-            TopAppBar(
-
-                title = {
-                    Text("Developer Mode")
-                },
-
-                navigationIcon = {
-
-                    IconButton(
-                        onClick =
-                            onBack
-                    ) {
-
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription =
-                                "Back"
-                        )
-                    }
-                }
-            )
+private fun DeveloperScreen(context: Context, settings: TrevorSettings, onBack: () -> Unit) {
+    IceScreen {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
+            }
+            Text("Diagnostics", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF173A48))
         }
-
-    ) { padding ->
-
-        LazyColumn(
-
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-
-            verticalArrangement =
-                Arrangement.spacedBy(10.dp)
-        ) {
-
-            item {
-
-                DiagnosticCard(
-                    "Application",
-                    "TREVOR"
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Package",
-                    "com.trevor.assistant"
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Version",
-                    TrevorVersion.label(context)
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "AI Enabled",
-                    settings.aiEnabled.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Gemini Enabled",
-                    settings.geminiEnabled.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Orb Enabled",
-                    settings.orbEnabled.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Developer Mode",
-                    settings.developerMode.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Debug Mode",
-                    settings.debugMode.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Secure Storage",
-                    settings.secureStorage.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "Offline First",
-                    settings.offlineFirst.toString()
-                )
-            }
-
-            item {
-
-                DiagnosticCard(
-                    "API Key Encryption",
-                    settings.localApiKeyEncryption.toString()
-                )
+        GlassPanel(Modifier.fillMaxWidth(), alpha = 0.66f) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("PHASE 1 FOUNDATION", color = settings.accent.color, fontWeight = FontWeight.Bold)
+                Text("Version: " + TrevorVersion.label(context))
+                Text("Orb: native OpenGL ES 2.0 3D renderer")
+                Text("Modes: NORMAL • ANALYSE • RESEARCH • PROJECT • RATIO SHIFTER")
+                Text("File injector: Android OpenDocument + validation/extraction")
+                Text("Verification principle: TREVOR does not claim actions it did not perform.")
             }
         }
     }
 }
 
 @Composable
-private fun DiagnosticCard(
-    name: String,
-    value: String
-) {
+private fun ApiKeyScreen(context: Context, onBack: () -> Unit) {
+    var key by remember { mutableStateOf(SecureApiKeyStore.load(context) ?: "") }
+    var show by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
 
-    Card(
-
-        modifier =
-            Modifier.fillMaxWidth()
-    ) {
-
-        Row(
-
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-
-            Text(
-
-                text = name,
-
-                modifier =
-                    Modifier.weight(1f),
-
-                fontWeight =
-                    FontWeight.Medium
-            )
-
-            Text(
-                text = value
-            )
-        }
-    }
-}
-
-@Composable
-private fun ApiKeyScreen(
-    context: Context,
-    onBack: () -> Unit
-) {
-
-    var apiKey by remember {
-
-        mutableStateOf(
-            SecureApiKeyStore.load(
-                context
-            ) ?: ""
-        )
-    }
-
-    var showKey by remember {
-        mutableStateOf(false)
-    }
-
-    var message by remember {
-        mutableStateOf("")
-    }
-
-    Scaffold(
-
-        topBar = {
-
-            TopAppBar(
-
-                title = {
-                    Text("Gemini API Key")
-                },
-
-                navigationIcon = {
-
-                    IconButton(
-                        onClick =
-                            onBack
-                    ) {
-
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription =
-                                "Back"
-                        )
-                    }
-                }
-            )
+    IceScreen {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
+            }
+            Text("Gemini API Key", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF173A48))
         }
 
-    ) { padding ->
-
-        Column(
-
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-        ) {
-
-            Text(
-                text =
-                    "Your key is stored locally using TREVOR's secure storage."
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(16.dp)
-            )
-
-            OutlinedTextField(
-
-                value = apiKey,
-
-                onValueChange = {
-
-                    apiKey = it
-                    message = ""
-                },
-
-                modifier =
-                    Modifier.fillMaxWidth(),
-
-                label = {
-                    Text("Gemini API Key")
-                },
-
-                singleLine = true,
-
-                visualTransformation =
-                    if (showKey) {
-                        VisualTransformation.None
-                    } else {
-                        PasswordVisualTransformation()
-                    },
-
-                trailingIcon = {
-
-                    IconButton(
-
-                        onClick = {
-                            showKey = !showKey
-                        }
-
-                    ) {
-
-                        Icon(
-
-                            imageVector =
-                                if (showKey) {
-                                    Icons.Filled.VisibilityOff
-                                } else {
-                                    Icons.Filled.Visibility
-                                },
-
-                            contentDescription =
+        GlassPanel(Modifier.fillMaxWidth(), alpha = 0.66f) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Stored locally with TREVOR secure storage.", color = Color(0xFF49636C))
+                OutlinedTextField(
+                    value = key,
+                    onValueChange = { key = it; message = "" },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { show = !show }) {
+                            Icon(
+                                if (show) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                                 "Show or hide key"
-                        )
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(26.dp)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = {
+                            if (key.isBlank()) {
+                                message = "API key cannot be empty."
+                            } else {
+                                SecureApiKeyStore.save(context, key.trim())
+                                message = "API key saved."
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.Check, "Save")
+                    }
+                    IconButton(
+                        onClick = {
+                            SecureApiKeyStore.clear(context)
+                            key = ""
+                            message = "API key removed."
+                        }
+                    ) {
+                        Icon(Icons.Filled.Close, "Remove")
                     }
                 }
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp)
-            )
-
-            Button(
-
-                modifier =
-                    Modifier.fillMaxWidth(),
-
-                onClick = {
-
-                    if (apiKey.isBlank()) {
-
-                        message =
-                            "API key cannot be empty."
-
-                    } else {
-
-                        SecureApiKeyStore.save(
-                            context,
-                            apiKey.trim()
-                        )
-
-                        message =
-                            "API key saved."
-                    }
-                }
-            ) {
-
-                Icon(
-                    Icons.Filled.Check,
-                    contentDescription =
-                        null
-                )
-
-                Spacer(
-                    Modifier.width(8.dp)
-                )
-
-                Text(
-                    "Save API Key"
-                )
-            }
-
-            Spacer(
-                modifier =
-                    Modifier.height(8.dp)
-            )
-
-            OutlinedButton(
-
-                modifier =
-                    Modifier.fillMaxWidth(),
-
-                onClick = {
-
-                    SecureApiKeyStore.clear(
-                        context
-                    )
-
-                    apiKey = ""
-
-                    message =
-                        "API key removed."
-                }
-            ) {
-
-                Text(
-                    "Remove API Key"
-                )
-            }
-
-            if (message.isNotBlank()) {
-
-                Spacer(
-                    modifier =
-                        Modifier.height(12.dp)
-                )
-
-                Text(
-
-                    text = message,
-
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .primary
-                )
+                if (message.isNotBlank()) Text(message, color = Color(0xFF32748A))
             }
         }
     }
