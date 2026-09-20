@@ -12,7 +12,8 @@ object TrevorCore {
         conciseResponses: Boolean,
         technicalDetail: Boolean,
         offlineFirst: Boolean = true,
-        mode: TrevorMode? = null
+        mode: TrevorMode? = null,
+        attachment: TrevorAttachment? = null
     ): TrevorCoreResult {
         val clean = command.trim()
         if (clean.isBlank()) return finish(TrevorCoreResult.Error("Please enter a command."))
@@ -22,46 +23,41 @@ object TrevorCore {
             it.copy(
                 currentMode = resolvedMode,
                 requestState = TrevorRequestState.PROCESSING,
-                orbState = TrevorOrbState.THINKING,
+                orbState = when (resolvedMode) {
+                    TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
+                    TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
+                    TrevorMode.TERMINAL -> TrevorOrbState.EXECUTING
+                    else -> TrevorOrbState.THINKING
+                },
                 aiState = if (aiEnabled && geminiEnabled) TrevorAiState.READY else TrevorAiState.DISABLED,
+                lastOutput = null,
                 lastError = null
             )
         }
         yield()
-        TrevorStateStore.update {
-            it.copy(
-                orbState = when (resolvedMode) {
-                    TrevorMode.NORMAL, TrevorMode.PROJECT, TrevorMode.RATIO_SHIFTER -> TrevorOrbState.THINKING
-                    TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
-                    TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
-                }
-            )
+
+        if (resolvedMode == TrevorMode.TERMINAL) {
+            val result = TrevorTerminalService.execute(context, clean, TrevorStateStore.state.value)
+            TrevorStateStore.update { it.copy(terminalOutput = if (clean.equals("clear", true)) "" else result) }
+            return finish(TrevorCoreResult.Answer(result))
         }
 
-        val result = if (offlineFirst) {
-            val local = TrevorLocalEngine.processCommand(clean)
-            when (local) {
+        val prompt = buildPrompt(clean, resolvedMode, conciseResponses, technicalDetail, attachment)
+        val result = if (offlineFirst && attachment == null && resolvedMode == TrevorMode.NORMAL) {
+            when (val local = TrevorLocalEngine.processCommand(clean)) {
                 is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
                 is TrevorEngineResult.Error -> TrevorCoreResult.Error(local.message)
-                is TrevorEngineResult.NeedAI -> requestAi(
-                    context, local.prompt, resolvedMode, aiEnabled, geminiEnabled,
-                    conciseResponses, technicalDetail
-                )
+                is TrevorEngineResult.NeedAI -> requestAi(context, local.prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
             }
         } else {
-            val aiResult = requestAi(
-                context, clean, resolvedMode, aiEnabled, geminiEnabled,
-                conciseResponses, technicalDetail
-            )
-            if (aiResult is TrevorCoreResult.Answer) {
-                aiResult
-            } else {
+            val aiResult = requestAi(context, prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
+            if (aiResult is TrevorCoreResult.Answer) aiResult
+            else if (offlineFirst && attachment == null) {
                 when (val local = TrevorLocalEngine.processCommand(clean)) {
                     is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
-                    is TrevorEngineResult.Error -> aiResult
-                    is TrevorEngineResult.NeedAI -> aiResult
+                    else -> aiResult
                 }
-            }
+            } else aiResult
         }
 
         return finish(result)
@@ -74,28 +70,59 @@ object TrevorCore {
         aiEnabled: Boolean,
         geminiEnabled: Boolean,
         conciseResponses: Boolean,
-        technicalDetail: Boolean
+        technicalDetail: Boolean,
+        attachment: TrevorAttachment?
     ): TrevorCoreResult {
         if (!aiEnabled) return TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
         if (!geminiEnabled) return TrevorCoreResult.Error("Gemini AI is disabled. Enable Gemini in Settings.")
 
         val key = SecureApiKeyStore.load(context.applicationContext)
-            ?: return TrevorCoreResult.Error("Gemini API key is not configured.\nOpen Settings → Gemini API Key.")
-
-        if (key.isBlank()) {
-            return TrevorCoreResult.Error("Gemini API key is not configured.\nOpen Settings → Gemini API Key.")
-        }
+            ?: return TrevorCoreResult.Error("Gemini API key is not configured. Open Settings → Gemini API Key.")
+        if (key.isBlank()) return TrevorCoreResult.Error("Gemini API key is not configured. Open Settings → Gemini API Key.")
 
         TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
+        val grounded = mode == TrevorMode.RESEARCH
         return GeminiAiProvider.ask(
+            context = context.applicationContext,
             apiKey = key,
-            prompt = buildPrompt(input, mode, conciseResponses, technicalDetail)
+            prompt = input,
+            attachment = attachment,
+            useGoogleSearch = grounded
         ).fold(
             onSuccess = { TrevorCoreResult.Answer(it) },
-            onFailure = { error ->
-                TrevorCoreResult.Error("Gemini request failed:\n" + (error.message ?: "Unknown error"))
-            }
+            onFailure = { error -> TrevorCoreResult.Error("Gemini request failed:\n" + (error.message ?: "Unknown error")) }
         )
+    }
+
+    private fun buildPrompt(
+        input: String,
+        mode: TrevorMode,
+        conciseResponses: Boolean,
+        technicalDetail: Boolean,
+        attachment: TrevorAttachment?
+    ): String {
+        val modeInstruction = when (mode) {
+            TrevorMode.NORMAL -> "Act as a general personal assistant."
+            TrevorMode.PROJECT -> "Work as a project engineering assistant. Preserve working code and change only what is necessary."
+            TrevorMode.RESEARCH -> "Research this using Google Search grounding. Prefer current sources. Clearly separate verified facts from uncertainty."
+            TrevorMode.ANALYSE -> "Analyse supplied information or files. Identify errors, assumptions, patterns, and actionable conclusions."
+            TrevorMode.RATIO_SHIFTER -> "Act as TREVOR's responsive layout assistant."
+            TrevorMode.TERMINAL -> "Do not invent terminal actions."
+        }
+        val style = if (conciseResponses) "Keep the answer concise but complete." else "Give a reasonably detailed answer."
+        val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
+        return listOf(
+            "You are TREVOR, The Really Efficient Virtual Operation Robot.",
+            "Created by Abhirup Gupta and Ritesh.",
+            "Mode: ${mode.name}",
+            modeInstruction,
+            style,
+            technical,
+            attachment?.let { "Attached file: ${it.name} (${it.mimeType}). Use it as authoritative user-provided context." } ?: "",
+            "User request:",
+            input,
+            "Never claim an action was performed unless it was actually performed and verified."
+        ).filter { it.isNotBlank() }.joinToString("\n")
     }
 
     private fun finish(result: TrevorCoreResult): TrevorCoreResult {
@@ -105,53 +132,19 @@ object TrevorCore {
                     requestState = TrevorRequestState.SUCCESS,
                     orbState = TrevorOrbState.SUCCESS,
                     aiState = if (it.aiState == TrevorAiState.PROCESSING) TrevorAiState.READY else it.aiState,
+                    lastOutput = result.text,
                     lastError = null
                 )
                 is TrevorCoreResult.Error -> it.copy(
                     requestState = TrevorRequestState.ERROR,
                     orbState = TrevorOrbState.ERROR,
                     aiState = if (it.aiState == TrevorAiState.PROCESSING) TrevorAiState.ERROR else it.aiState,
+                    lastOutput = "ERROR\n${result.message}",
                     lastError = result.message
                 )
             }
         }
         return result
-    }
-
-    private fun buildPrompt(
-        input: String,
-        mode: TrevorMode,
-        conciseResponses: Boolean,
-        technicalDetail: Boolean
-    ): String {
-        val responseStyle = if (conciseResponses) {
-            "Keep responses concise while still answering correctly."
-        } else {
-            "Give a reasonably detailed response."
-        }
-        val technicalStyle = if (technicalDetail) {
-            "Technical details are welcome when useful."
-        } else {
-            "Prefer simple explanations and avoid unnecessary technical detail."
-        }
-        val modeInstruction = when (mode) {
-            TrevorMode.NORMAL -> "Act as a general personal assistant. Answer naturally and conversationally."
-            TrevorMode.PROJECT -> "Treat this as project work. Help plan, build, organize, debug, or reason through the project."
-            TrevorMode.RESEARCH -> "Treat this as research. Distinguish established facts, uncertainty, and claims that need sources. Do not pretend to have searched."
-            TrevorMode.ANALYSE -> "Treat this as analysis. Inspect supplied information, identify patterns, errors, assumptions, and useful conclusions."
-            TrevorMode.RATIO_SHIFTER -> "Treat this as an interface/layout adaptation request."
-        }
-        return listOf(
-            "You are TREVOR, The Really Efficient Virtual Operation Robot.",
-            "TREVOR was created by Abhirup Gupta and Ritesh.",
-            "Operating mode: " + mode.name,
-            modeInstruction,
-            "User request:",
-            input,
-            responseStyle,
-            technicalStyle,
-            "Never claim that an action was performed unless it was actually performed and verified."
-        ).joinToString("\n")
     }
 }
 
