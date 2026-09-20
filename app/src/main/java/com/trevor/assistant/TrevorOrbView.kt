@@ -165,7 +165,7 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             }
 
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-            Matrix.setLookAtM(view, 0, 0f, 0f, 5.1f, 0f, 0f, 0f, 1f, 0f)
+            Matrix.setLookAtM(view, 0, 0f, 0f, 5.1f, 0f, 0f, 0f, 0f, 1f, 0f)
             Matrix.setIdentityM(model, 0)
             Matrix.rotateM(model, 0, pitch, 1f, 0f, 0f)
             Matrix.rotateM(model, 0, yaw, 0f, 1f, 0f)
