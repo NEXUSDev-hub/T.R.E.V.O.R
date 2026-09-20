@@ -17,7 +17,7 @@ object TrevorModeRouter {
     }
 
     private fun score(text: String, vararg phrases: String): Int =
-        phrases.sumOf { if (text.contains(it)) 1 else 0 }
+        phrases.count { phrase -> text.contains(phrase) }
 
     private fun containsAny(text: String, vararg phrases: String): Boolean =
         phrases.any { phrase -> text.contains(phrase) }
