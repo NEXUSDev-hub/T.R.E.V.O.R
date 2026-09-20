@@ -614,6 +614,16 @@ private fun TrevorSettingsScreen(
             TrevorSwitch("Concise responses", settings.conciseResponses) { onChange(settings.copy(conciseResponses = it)) }
             TrevorSwitch("Technical detail", settings.technicalDetail) { onChange(settings.copy(technicalDetail = it)) }
         }
+        TrevorSettingsSection("PROACTIVE PERSONALITY", settings.accent.color) {
+            TrevorPersonalityMenu(settings, onChange)
+            TrevorSwitch("Proactive behaviour", settings.proactiveEnabled) { onChange(settings.copy(proactiveEnabled = it)) }
+            TrevorSwitch("Background notifications", settings.backgroundNotifications) { onChange(settings.copy(backgroundNotifications = it)) }
+            if (settings.personality == TrevorPersonality.FOR_YOU) {
+                TrevorSwitch("Rubbish mode", settings.rubbishMode) { onChange(settings.copy(rubbishMode = it)) }
+                Text("Rubbish mode runs every ${settings.rubbishIntervalSeconds}s while proactive mode is active.", color = Color(0xFF83AAB7), fontSize = 10.sp)
+            }
+            Text("Professional stays quiet unless useful. Chaotic and Deadpool can initiate assistant messages. Background behaviour is optional and uses an Android foreground service.", color = Color(0xFF83AAB7), fontSize = 10.sp)
+        }
         TrevorSettingsSection("DIAGNOSTICS", settings.accent.color) {
             TrevorButton("Developer diagnostics", Icons.Filled.Terminal, onDeveloper, settings.accent.color)
         }
@@ -662,6 +672,34 @@ private fun TrevorDeveloperScreen(context: Context, onBack: () -> Unit) {
             state.lastError?.let { Text("Last error: $it", color = Color(0xFFFF7180)) }
             Text("File pipeline: SAF → validation → extraction/media attachment → Core")
             Text("Research: Google Search grounding enabled in Research mode")
+        }
+    }
+}
+
+
+@Composable
+private fun TrevorPersonalityMenu(settings: TrevorSettings, onChange: (TrevorSettings) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        Surface(
+            Modifier.fillMaxWidth().clickable { expanded = true },
+            color = Color(0xFF0B2230).copy(alpha = 0.82f),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, settings.accent.color.copy(alpha = 0.32f))
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text("Personality", color = settings.accent.color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(settings.personality.label, color = Color(0xFFDDF7FF), fontSize = 14.sp)
+                Text(settings.personality.description, color = Color(0xFF83AAB7), fontSize = 10.sp)
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TrevorPersonality.entries.forEach { p ->
+                DropdownMenuItem(
+                    text = { Text(p.label) },
+                    onClick = { onChange(settings.copy(personality = p)); expanded = false }
+                )
+            }
         }
     }
 }
