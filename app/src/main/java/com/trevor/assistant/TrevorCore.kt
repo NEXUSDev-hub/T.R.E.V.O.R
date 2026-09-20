@@ -88,7 +88,8 @@ object TrevorCore {
             TrevorMode.RATIO_SHIFTER -> "Treat this as an interface/layout adaptation request."
         }
         return listOf(
-            "You are TREVOR, The Riteshified Efficient Virtual Operation Robot.",
+            "You are TREVOR, The Really Efficient Virtual Operation Robot.",
+            "TREVOR was created by Abhirup Gupta and Ritesh.",
             "Operating mode: " + mode.name,
             modeInstruction,
             "User request:",
