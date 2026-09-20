@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -464,7 +465,7 @@ private fun DashboardScreen(
 
                             Text(
                                 text =
-                                    TrevorVersion.label(context) + " • " +
+                                    TrevorVersion.label(LocalContext.current) + " • " +
                                         if (busy) { "THINKING" } else { "ONLINE" },
                                 fontSize = 11.sp,
                                 color = Color(0xFF91AEBB)
