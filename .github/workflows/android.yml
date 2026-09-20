@@ -1,4 +1,4 @@
-name: Android Build
+name: TREVOR Debug APK
 
 on:
   push:
@@ -10,16 +10,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: trevor-android-build-${{ github.ref }}
+  group: trevor-debug-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build TREVOR APK
+    name: Build and verify TREVOR Debug APK
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v5
 
       - name: Set up JDK 17
@@ -34,7 +33,7 @@ jobs:
         with:
           packages: ''
 
-      - name: Install required Android SDK packages
+      - name: Install Android SDK packages
         run: |
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-35"
@@ -43,10 +42,16 @@ jobs:
       - name: Grant Gradle execute permission
         run: chmod +x gradlew
 
-      - name: Build debug APK
+      - name: Clean debug build
         run: ./gradlew --no-daemon --stacktrace clean assembleDebug
 
-      - name: Upload APK
+      - name: Verify APK artifact
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | head -n 12
+          unzip -t app/build/outputs/apk/debug/app-debug.apk >/dev/null
+
+      - name: Upload verified Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: TREVOR-debug-apk
