@@ -201,11 +201,7 @@ private fun TrevorDashboard(
                     TrevorStateStore.update {
                         it.copy(
                             currentMode = selected,
-                            orbState = when (selected) {
-                                TrevorMode.NORMAL, TrevorMode.PROJECT, TrevorMode.RATIO_SHIFTER -> TrevorOrbState.IDLE
-                                TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
-                                TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
-                            },
+                            orbState = TrevorOrbState.IDLE,
                             lastError = null
                         )
                     }
