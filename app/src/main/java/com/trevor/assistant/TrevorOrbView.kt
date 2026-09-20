@@ -13,18 +13,15 @@ import java.nio.ShortBuffer
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Native OpenGL ES sphere with lighting, touch rotation, pinch zoom and reset. */
+/** Native OpenGL ES 2.0 3D orb with touch rotation, pinch zoom and state animation. */
 class TrevorOrbView(context: Context) : GLSurfaceView(context) {
     private val renderer = OrbRenderer()
-    private val scaleDetector = ScaleGestureDetector(
-        context,
-        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                renderer.zoom = (renderer.zoom * detector.scaleFactor).coerceIn(0.72f, 1.8f)
-                return true
-            }
+    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            renderer.zoom = (renderer.zoom * detector.scaleFactor).coerceIn(0.72f, 1.8f)
+            return true
         }
-    )
+    })
     private var lastX = 0f
     private var lastY = 0f
 
@@ -36,44 +33,22 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
         isClickable = true
     }
 
-    fun setAccent(argb: Int) {
-        renderer.setAccent(argb)
-    }
-
-    fun setAnimated(enabled: Boolean) {
-        renderer.animated = enabled
-    }
-
-    fun setState(state: TrevorOrbState) {
-        renderer.state = state
-    }
-
-    fun resetView() {
-        renderer.resetView()
-    }
+    fun setAccent(argb: Int) { renderer.setAccent(argb) }
+    fun setAnimated(enabled: Boolean) { renderer.animated = enabled }
+    fun setState(state: TrevorOrbState) { renderer.state = state }
+    fun resetView() { renderer.resetView() }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lastX = event.x
-                lastY = event.y
+            MotionEvent.ACTION_DOWN -> { lastX = event.x; lastY = event.y; return true }
+            MotionEvent.ACTION_MOVE -> if (event.pointerCount == 1) {
+                renderer.yaw += (event.x - lastX) * 0.45f
+                renderer.pitch = (renderer.pitch + (event.y - lastY) * 0.45f).coerceIn(-80f, 80f)
+                lastX = event.x; lastY = event.y
                 return true
             }
-            MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount == 1) {
-                    renderer.yaw += (event.x - lastX) * 0.45f
-                    renderer.pitch = (renderer.pitch + (event.y - lastY) * 0.45f)
-                        .coerceIn(-80f, 80f)
-                    lastX = event.x
-                    lastY = event.y
-                }
-                return true
-            }
-            MotionEvent.ACTION_UP -> {
-                performClick()
-                return true
-            }
+            MotionEvent.ACTION_UP -> { performClick(); return true }
             MotionEvent.ACTION_CANCEL -> return true
         }
         return true
@@ -98,16 +73,18 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
         private var colorHandle = 0
         private var lightHandle = 0
         private var intensityHandle = 0
+        private var pulseHandle = 0
+        private var stateHandle = 0
         private var vertexBuffer: FloatBuffer? = null
         private var normalBuffer: FloatBuffer? = null
         private var indexBuffer: ShortBuffer? = null
         private var indexCount = 0
-        private var indexVbo = 0
         private val model = FloatArray(16)
         private val view = FloatArray(16)
         private val projection = FloatArray(16)
         private val mvp = FloatArray(16)
         private var lastTime = System.nanoTime()
+        private var elapsed = 0f
 
         fun setAccent(argb: Int) {
             accentR = ((argb shr 16) and 0xFF) / 255f
@@ -115,17 +92,10 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             accentB = (argb and 0xFF) / 255f
         }
 
-        fun resetView() {
-            yaw = 0f
-            pitch = 8f
-            zoom = 1f
-        }
+        fun resetView() { yaw = 0f; pitch = 8f; zoom = 1f }
 
-        override fun onSurfaceCreated(
-            gl: javax.microedition.khronos.opengles.GL10?,
-            config: javax.microedition.khronos.egl.EGLConfig?
-        ) {
-            GLES20.glClearColor(0.86f, 0.96f, 0.98f, 1f)
+        override fun onSurfaceCreated(gl: javax.microedition.khronos.opengles.GL10?, config: javax.microedition.khronos.egl.EGLConfig?) {
+            GLES20.glClearColor(0.82f, 0.93f, 0.96f, 1f)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             program = buildProgram(VERTEX, FRAGMENT)
@@ -135,14 +105,12 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             colorHandle = GLES20.glGetUniformLocation(program, "uColor")
             lightHandle = GLES20.glGetUniformLocation(program, "uLight")
             intensityHandle = GLES20.glGetUniformLocation(program, "uIntensity")
-            buildSphere(48, 32)
+            pulseHandle = GLES20.glGetUniformLocation(program, "uPulse")
+            stateHandle = GLES20.glGetUniformLocation(program, "uState")
+            buildSphere(40, 28)
         }
 
-        override fun onSurfaceChanged(
-            gl: javax.microedition.khronos.opengles.GL10?,
-            width: Int,
-            height: Int
-        ) {
+        override fun onSurfaceChanged(gl: javax.microedition.khronos.opengles.GL10?, width: Int, height: Int) {
             GLES20.glViewport(0, 0, width, height)
             val ratio = width.toFloat() / height.coerceAtLeast(1)
             Matrix.frustumM(projection, 0, -ratio, ratio, -1f, 1f, 2.4f, 12f)
@@ -153,13 +121,13 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             val dt = ((now - lastTime) / 1_000_000_000f).coerceIn(0f, 0.05f)
             lastTime = now
             if (animated) {
+                elapsed += dt
                 val speed = when (state) {
-                    TrevorOrbState.THINKING,
-                    TrevorOrbState.ANALYSING,
-                    TrevorOrbState.RESEARCHING,
-                    TrevorOrbState.PROCESSING_FILE,
-                    TrevorOrbState.EXECUTING -> 22f
-                    else -> 10f
+                    TrevorOrbState.THINKING, TrevorOrbState.ANALYSING, TrevorOrbState.RESEARCHING,
+                    TrevorOrbState.PROCESSING_FILE, TrevorOrbState.EXECUTING -> 24f
+                    TrevorOrbState.SUCCESS -> 7f
+                    TrevorOrbState.ERROR -> 3f
+                    else -> 9f
                 }
                 yaw += dt * speed
             }
@@ -177,10 +145,23 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             GLES20.glUniformMatrix4fv(mvpHandle, 1, false, mvp, 0)
             GLES20.glUniform4f(colorHandle, accentR, accentG, accentB, 1f)
             GLES20.glUniform3f(lightHandle, -0.45f, 0.7f, 1f)
-            GLES20.glUniform1f(
-                intensityHandle,
-                if (state == TrevorOrbState.ERROR) 0.72f else if (state == TrevorOrbState.SUCCESS) 1.28f else 1f
-            )
+            val pulse = if (animated) (sin(elapsed * when (state) {
+                TrevorOrbState.LISTENING -> 7f
+                TrevorOrbState.THINKING, TrevorOrbState.ANALYSING, TrevorOrbState.RESEARCHING,
+                TrevorOrbState.PROCESSING_FILE, TrevorOrbState.EXECUTING -> 4.5f
+                TrevorOrbState.SUCCESS -> 2f
+                TrevorOrbState.ERROR -> 1.2f
+                else -> 1.8f
+            }) * 0.5f + 0.5f) else 0.5f
+            GLES20.glUniform1f(pulseHandle, pulse)
+            GLES20.glUniform1f(stateHandle, state.ordinal.toFloat())
+            GLES20.glUniform1f(intensityHandle, when (state) {
+                TrevorOrbState.SUCCESS -> 1.35f
+                TrevorOrbState.ERROR -> 0.82f
+                TrevorOrbState.IDLE -> 0.96f
+                TrevorOrbState.LISTENING -> 1.12f + pulse * 0.3f
+                else -> 1.05f + pulse * 0.24f
+            })
             drawSphere()
         }
 
@@ -193,57 +174,31 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
                 val y = cos(phi).toFloat()
                 val r = sin(phi).toFloat()
                 for (slice in 0..slices) {
-                    val u = slice.toFloat() / slices
-                    val theta = Math.PI * 2.0 * u
+                    val theta = Math.PI * 2.0 * slice / slices
                     val x = (r * cos(theta)).toFloat()
                     val z = (r * sin(theta)).toFloat()
                     vertices.add(x); vertices.add(y); vertices.add(z)
                     normals.add(x); normals.add(y); normals.add(z)
                 }
             }
-
             val indices = ArrayList<Short>()
-            for (stack in 0 until stacks) {
-                for (slice in 0 until slices) {
-                    val a = (stack * (slices + 1) + slice).toShort()
-                    val b = (a.toInt() + slices + 1).toShort()
-                    val c = (b.toInt() + 1).toShort()
-                    val d = (a.toInt() + 1).toShort()
-                    indices.add(a); indices.add(b); indices.add(d)
-                    indices.add(d); indices.add(b); indices.add(c)
-                }
+            for (stack in 0 until stacks) for (slice in 0 until slices) {
+                val a = (stack * (slices + 1) + slice).toShort()
+                val b = (a.toInt() + slices + 1).toShort()
+                val c = (b.toInt() + 1).toShort()
+                val d = (a.toInt() + 1).toShort()
+                indices.add(a); indices.add(b); indices.add(d); indices.add(d); indices.add(b); indices.add(c)
             }
-
-            vertexBuffer = ByteBuffer.allocateDirect(vertices.size * 4)
-                .order(ByteOrder.nativeOrder()).asFloatBuffer()
-                .apply { vertices.forEach { put(it) }; position(0) }
-            normalBuffer = ByteBuffer.allocateDirect(normals.size * 4)
-                .order(ByteOrder.nativeOrder()).asFloatBuffer()
-                .apply { normals.forEach { put(it) }; position(0) }
-            indexBuffer = ByteBuffer.allocateDirect(indices.size * 2)
-                .order(ByteOrder.nativeOrder()).asShortBuffer()
-                .apply { indices.forEach { put(it) }; position(0) }
+            vertexBuffer = ByteBuffer.allocateDirect(vertices.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { vertices.forEach(::put); position(0) }
+            normalBuffer = ByteBuffer.allocateDirect(normals.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { normals.forEach(::put); position(0) }
+            indexBuffer = ByteBuffer.allocateDirect(indices.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer().apply { indices.forEach(::put); position(0) }
             indexCount = indices.size
-            val buffers = IntArray(1)
-            GLES20.glGenBuffers(1, buffers, 0)
-            indexVbo = buffers[0]
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, indexVbo)
-            GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, indices.size * 2, indexBuffer, GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
         }
 
         private fun drawSphere() {
-            vertexBuffer?.let {
-                GLES20.glEnableVertexAttribArray(positionHandle)
-                GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, it)
-            }
-            normalBuffer?.let {
-                GLES20.glEnableVertexAttribArray(normalHandle)
-                GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT, false, 0, it)
-            }
-            indexBuffer?.let {
-                GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, it as java.nio.Buffer)
-            }
+            vertexBuffer?.let { GLES20.glEnableVertexAttribArray(positionHandle); GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, it) }
+            normalBuffer?.let { GLES20.glEnableVertexAttribArray(normalHandle); GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT, false, 0, it) }
+            indexBuffer?.let { GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, it) }
             GLES20.glDisableVertexAttribArray(positionHandle)
             GLES20.glDisableVertexAttribArray(normalHandle)
         }
@@ -252,21 +207,16 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             val vs = compile(GLES20.GL_VERTEX_SHADER, vertex)
             val fs = compile(GLES20.GL_FRAGMENT_SHADER, fragment)
             return GLES20.glCreateProgram().also { p ->
-                GLES20.glAttachShader(p, vs)
-                GLES20.glAttachShader(p, fs)
-                GLES20.glLinkProgram(p)
-                val linked = IntArray(1)
-                GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, linked, 0)
+                GLES20.glAttachShader(p, vs); GLES20.glAttachShader(p, fs); GLES20.glLinkProgram(p)
+                val linked = IntArray(1); GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, linked, 0)
                 check(linked[0] == GLES20.GL_TRUE) { GLES20.glGetProgramInfoLog(p) }
             }
         }
 
         private fun compile(type: Int, source: String): Int {
             val shader = GLES20.glCreateShader(type)
-            GLES20.glShaderSource(shader, source)
-            GLES20.glCompileShader(shader)
-            val ok = IntArray(1)
-            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, ok, 0)
+            GLES20.glShaderSource(shader, source); GLES20.glCompileShader(shader)
+            val ok = IntArray(1); GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, ok, 0)
             check(ok[0] == GLES20.GL_TRUE) { GLES20.glGetShaderInfoLog(shader) }
             return shader
         }
@@ -285,16 +235,28 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
                 gl_Position = uMvp * vec4(aPosition, 1.0);
             }
         """
-
         private const val FRAGMENT = """
             precision mediump float;
             uniform vec4 uColor;
             uniform float uIntensity;
+            uniform float uPulse;
+            uniform float uState;
             varying float vLight;
             void main() {
                 vec3 ice = vec3(0.72, 0.96, 1.0);
-                vec3 base = mix(ice, uColor.rgb, 0.62);
-                vec3 lit = base * vLight * uIntensity + vec3(0.08, 0.14, 0.16);
+                vec3 stateTint = uColor.rgb;
+                if (uState > 7.5) {
+                    stateTint = vec3(1.0, 0.25, 0.30);
+                } else if (uState > 6.5) {
+                    stateTint = vec3(0.25, 1.0, 0.72);
+                } else if (uState > 4.5) {
+                    stateTint = mix(uColor.rgb, vec3(0.30, 0.72, 1.0), 0.35);
+                } else if (uState > 3.5) {
+                    stateTint = mix(uColor.rgb, vec3(0.50, 0.38, 1.0), 0.28);
+                }
+                float rim = 0.90 + uPulse * 0.24;
+                vec3 base = mix(ice, stateTint, 0.62);
+                vec3 lit = base * vLight * uIntensity * rim + vec3(0.08, 0.14, 0.16);
                 gl_FragColor = vec4(lit, 1.0);
             }
         """
