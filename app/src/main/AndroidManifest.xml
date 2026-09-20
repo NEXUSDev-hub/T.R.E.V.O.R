@@ -3,6 +3,8 @@
 
     <!-- Required for Gemini API network requests -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:theme="@style/Theme.TREVOR"
@@ -21,6 +23,7 @@
 
         </activity>
 
+    <service android:name=".TrevorProactiveService" android:exported="false" android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>
