@@ -240,7 +240,8 @@ private fun TrevorOrbStage(
     onMode: (TrevorMode) -> Unit
 ) {
     BoxWithConstraints(modifier) {
-        val radius = if (maxWidth < 380.dp) 158.dp else 182.dp
+        val minDimension = minOf(maxWidth.value, maxHeight.value)
+        val radius = (minDimension * 0.36f).coerceIn(112f, 182f).dp
         val angle = rememberInfiniteTransition(label = "satellites").animateFloat(
             0f, 360f,
             androidx.compose.animation.core.infiniteRepeatable(
@@ -279,7 +280,8 @@ private fun TrevorOrbStage(
             Surface(
                 modifier = Modifier.align(Alignment.Center).offset { IntOffset(x, y) }
                     .border(1.dp, accent.copy(alpha = if (selectedMode == item.third) 0.75f else 0.25f), RoundedCornerShape(22.dp))
-                    .clickable { onMode(item.third) },
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { onMode(item.third) }
+                    .heightIn(min = 48.dp),
                 color = Color.White.copy(alpha = if (selectedMode == item.third) 0.78f else 0.48f),
                 shadowElevation = 4.dp,
                 shape = RoundedCornerShape(22.dp)
@@ -440,7 +442,9 @@ private fun TrevorToolGrid(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 rowTools.forEach { (label, prompt) ->
                     Surface(
-                        modifier = Modifier.weight(1f).clickable { onTool(prompt) },
+                        modifier = Modifier.weight(1f)
+                            .clickable(role = androidx.compose.ui.semantics.Role.Button) { onTool(prompt) }
+                            .heightIn(min = 48.dp),
                         color = Color.White.copy(alpha = 0.45f),
                         shape = RoundedCornerShape(14.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.22f))
@@ -475,7 +479,6 @@ private fun TrevorSettingsScreen(
             TrevorButton("Gemini API Key", Icons.Filled.Settings, onApiKey, settings.accent.color)
         }
         TrevorSettingsSection("INTERFACE & ORB", settings.accent.color) {
-            TrevorSwitch("Holographic frost", settings.iceFrost) { onChange(settings.copy(iceFrost = it)) }
             TrevorSwitch("Orb enabled", settings.orbEnabled) { onChange(settings.copy(orbEnabled = it)) }
             TrevorSwitch("Orb animations", settings.animations) { onChange(settings.copy(animations = it)) }
             TrevorSwitch("Concise responses", settings.conciseResponses) { onChange(settings.copy(conciseResponses = it)) }
