@@ -235,7 +235,7 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
                 GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT, false, 0, it)
             }
             indexBuffer?.let {
-                GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, it)
+                GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, it as java.nio.Buffer)
             }
             GLES20.glDisableVertexAttribArray(positionHandle)
             GLES20.glDisableVertexAttribArray(normalHandle)
