@@ -17,6 +17,11 @@ object TrevorCore {
     ): TrevorCoreResult {
         val clean = command.trim()
         if (clean.isBlank()) return finish(TrevorCoreResult.Error("Please enter a command."))
+        val remember = Regex("^remember\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
+        if (remember != null) {
+            TrevorMemoryStore.add(context, remember)
+            return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
+        }
 
         val resolvedMode = TrevorModeRouter.route(mode, clean)
         TrevorStateStore.update {
@@ -111,9 +116,11 @@ object TrevorCore {
         }
         val style = if (conciseResponses) "Keep the answer concise but complete." else "Give a reasonably detailed answer."
         val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
+        val memory = TrevorMemoryStore.relevant(context, input)
         return listOf(
             TrevorIdentity.IMMUTABLE_DIRECTIVE,
             "Mode: ${mode.name}",
+            if (memory.isNotEmpty()) "Relevant approved local memory:\\n- " + memory.joinToString("\\n- ") else "",
             modeInstruction,
             style,
             technical,
