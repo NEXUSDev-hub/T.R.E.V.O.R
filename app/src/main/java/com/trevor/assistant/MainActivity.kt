@@ -687,6 +687,8 @@ private fun TrevorDeveloperScreen(context: Context, onBack: () -> Unit) {
         TrevorTopBar("DIAGNOSTICS", onBack)
         TrevorSettingsSection("TREVOR FOUNDATION", Color(0xFF58D9FF)) {
             Text("Version: " + TrevorVersion.label(context))
+            Text("Identity: " + TrevorIdentity.FULL_NAME)
+            Text("Creators: " + TrevorIdentity.CREATORS)
             Text("Gemini model: " + GeminiAiProvider.MODEL)
             Text("Orb: OpenGL ES 2.0 crystal renderer")
             Text("Orb state: " + state.orbState)
