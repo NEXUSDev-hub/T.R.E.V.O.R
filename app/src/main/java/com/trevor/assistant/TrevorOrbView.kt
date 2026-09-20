@@ -233,8 +233,10 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             uniform mat4 uMvp;
             uniform vec3 uLight;
             varying float vLight;
+            varying vec3 vNormal;
             void main() {
                 vec3 n = normalize(aNormal);
+                vNormal = n;
                 vLight = max(0.22, dot(n, normalize(uLight)) * 0.62 + 0.38);
                 gl_Position = uMvp * vec4(aPosition, 1.0);
             }
@@ -246,12 +248,10 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             uniform float uPulse;
             uniform float uState;
             varying float vLight;
+            varying vec3 vNormal;
             void main() {
-                vec3 n = normalize(vec3(
-                    sign(vLight - 0.5) * 0.001 + 0.001,
-                    0.7,
-                    1.0
-                ));
+                vec3 n = normalize(vNormal);
+                n = normalize(sign(n) * floor(abs(n) * 5.0 + 0.5) / 5.0);
                 vec3 ice = vec3(0.66, 0.94, 1.0);
                 vec3 stateTint = uColor.rgb;
                 if (uState > 7.5) stateTint = vec3(1.0, 0.20, 0.28);
