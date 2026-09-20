@@ -70,7 +70,6 @@ object TrevorCore {
 
     private suspend fun requestAi(
         context: Context,
-        context: Context,
         input: String,
         mode: TrevorMode,
         aiEnabled: Boolean,
@@ -101,6 +100,7 @@ object TrevorCore {
     }
 
     private fun buildPrompt(
+        context: Context,
         input: String,
         mode: TrevorMode,
         conciseResponses: Boolean,
