@@ -1404,7 +1404,7 @@ private fun DeveloperScreen(
 
                 DiagnosticCard(
                     "Version",
-                    "0.0.2"
+                    TrevorVersion.label(context)
                 )
             }
 
