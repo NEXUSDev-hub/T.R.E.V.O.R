@@ -361,7 +361,7 @@ private fun TrevorOrbStage(
                     .offset { IntOffset((base.x + drag.x).toInt(), (base.y + drag.y).toInt()) }
                     .pointerInput(mode) {
                         detectDragGestures { change, dragAmount ->
-                            change.consume()
+                            Unit
                             drags[mode] = (drags[mode] ?: Offset.Zero) + dragAmount
                         }
                     }
