@@ -520,7 +520,6 @@ private fun WorkspaceHeader(title: String, subtitle: String, accent: Color) {
 private fun ToolGrid(
     tools: List<Pair<String, String>>,
     accent: Color,
-    mode: TrevorMode,
     onTool: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
