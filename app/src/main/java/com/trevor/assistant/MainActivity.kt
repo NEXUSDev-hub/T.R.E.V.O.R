@@ -439,55 +439,55 @@ private fun NormalWorkspace(accent: Color, onTool: (String) -> Unit) {
         "Solve" to "Solve this step by step:",
         "Rewrite" to "Rewrite this:",
         "Ask anything" to ""
-    ), accent, TrevorMode.NORMAL, onTool)
+    ), accent, onTool)
 }
 
 @Composable
-private fun AnalyseWorkspace(attachment: TrevorAttachment?, accent: Color, onTool: (String, TrevorMode, (String) -> Unit) -> Unit) {
+private fun AnalyseWorkspace(attachment: TrevorAttachment?, accent: Color, onTool: (String) -> Unit) {
     WorkspaceHeader("ANALYSIS TOOLKIT", if (attachment != null) "Attached context is ready." else "Attach a file or analyse pasted information.", accent)
     ToolGrid(listOf(
         "Summarize" to "Summarize the supplied material and extract the key points.",
         "Find issues" to "Analyse the supplied material and identify errors, inconsistencies, or weak assumptions.",
         "Explain code" to "Analyse the supplied code and explain its architecture and important data flow.",
         "Extract facts" to "Extract the important facts, decisions, risks, and open questions."
-    ), accent, TrevorMode.ANALYSE, onTool)
+    ), accent, onTool)
 }
 
 @Composable
-private fun ResearchWorkspace(accent: Color, onTool: (String, TrevorMode, (String) -> Unit) -> Unit) {
+private fun ResearchWorkspace(accent: Color, onTool: (String) -> Unit) {
     WorkspaceHeader("LIVE RESEARCH", "Gemini 3.8 Flash uses Google Search grounding in Research mode.", accent)
     ToolGrid(listOf(
         "Latest" to "Find the latest verified information about:",
         "Compare sources" to "Research and compare reliable sources about:",
         "Check a claim" to "Check this claim against current web sources and state what is verified:",
         "Deep research" to "Research this topic thoroughly using current web sources:"
-    ), accent, TrevorMode.RESEARCH, onTool)
+    ), accent, onTool)
 }
 
 @Composable
-private fun ProjectWorkspace(accent: Color, onTool: (String, TrevorMode, (String) -> Unit) -> Unit) {
+private fun ProjectWorkspace(accent: Color, onTool: (String) -> Unit) {
     WorkspaceHeader("PROJECT TOOLKIT", "Preserve working pieces and change only what is necessary.", accent)
     ToolGrid(listOf(
         "Plan" to "Create a practical plan for this project:",
         "Debug" to "Debug this project and identify the most likely root causes:",
         "Architecture" to "Review this architecture and propose only necessary improvements:",
         "Checklist" to "Create a development checklist for this project:"
-    ), accent, TrevorMode.PROJECT, onTool)
+    ), accent, onTool)
 }
 
 @Composable
-private fun RatioWorkspace(accent: Color, onTool: (String, TrevorMode, (String) -> Unit) -> Unit) {
+private fun RatioWorkspace(accent: Color, onTool: (String) -> Unit) {
     WorkspaceHeader("RATIO SHIFTER", "Live layout adapts to portrait, landscape and available space.", accent)
     ToolGrid(listOf(
         "Portrait review" to "Review this interface for compact portrait layout:",
         "Landscape review" to "Review this interface for a wide landscape layout:",
         "Spacing review" to "Find spacing and clipping risks in this responsive UI:",
         "Explain adaptation" to "Explain how this interface should adapt to this screen:"
-    ), accent, TrevorMode.RATIO_SHIFTER, onTool)
+    ), accent, onTool)
 }
 
 @Composable
-private fun TerminalWorkspace(accent: Color, onTool: (String, TrevorMode, (String) -> Unit) -> Unit) {
+private fun TerminalWorkspace(accent: Color, onTool: (String) -> Unit) {
     WorkspaceHeader("TREVOR TERMINAL", "Controlled read-only Android diagnostics. Type help to begin.", accent)
     Surface(
         color = Color(0xFF01070B).copy(alpha = 0.92f),
@@ -506,7 +506,7 @@ private fun TerminalWorkspace(accent: Color, onTool: (String, TrevorMode, (Strin
         "status" to "status",
         "system" to "uname",
         "workspace" to "pwd"
-    ), accent, TrevorMode.TERMINAL, onTool)
+    ), accent, onTool)
 }
 
 @Composable
@@ -521,7 +521,7 @@ private fun ToolGrid(
     tools: List<Pair<String, String>>,
     accent: Color,
     mode: TrevorMode,
-    onTool: (String, TrevorMode, (String) -> Unit) -> Unit
+    onTool: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         tools.chunked(2).forEach { row ->
