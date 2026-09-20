@@ -42,7 +42,7 @@ object TrevorMemoryStore {
     }
 
     fun relevant(context: Context, query: String, limit: Int = 6): List<String> {
-        val terms = query.lowercase().split(Regex("\W+")).filter { it.length > 2 }.toSet()
+        val terms = query.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.toSet()
         return all(context)
             .sortedByDescending { memory ->
                 terms.count { memory.lowercase().contains(it) }
