@@ -112,8 +112,7 @@ object TrevorCore {
         val style = if (conciseResponses) "Keep the answer concise but complete." else "Give a reasonably detailed answer."
         val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
         return listOf(
-            "You are TREVOR, The Really Efficient Virtual Operation Robot.",
-            "Created by Abhirup Gupta and Ritesh.",
+            TrevorIdentity.IMMUTABLE_DIRECTIVE,
             "Mode: ${mode.name}",
             modeInstruction,
             style,
