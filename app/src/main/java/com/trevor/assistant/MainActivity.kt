@@ -179,7 +179,7 @@ class MainActivity : ComponentActivity() {
                 context = this,
                 onPickFile = { filePicker.launch(arrayOf("*/*")) },
                 selectedFile = selectedFile,
-                onRemoveFile = { selectedFile = null }
+                onRemoveFile = { selectedFile = null; TrevorStateStore.update { it.copy(fileState = TrevorFileState.NONE, orbState = TrevorOrbState.IDLE, lastError = null) } }
             )
         }
     }
@@ -234,7 +234,13 @@ private fun inspectFile(context: Context, uri: Uri): SelectedFile {
     } else {
         null
     }
-    TrevorStateStore.update { it.copy(fileState = TrevorFileState.READY, orbState = TrevorOrbState.IDLE) }
+    TrevorStateStore.update {
+        it.copy(
+            fileState = if (!textLike || extracted != null) TrevorFileState.READY else TrevorFileState.ERROR,
+            orbState = if (textLike && extracted == null) TrevorOrbState.ERROR else TrevorOrbState.IDLE,
+            lastError = if (textLike && extracted == null) "Unable to extract text from the selected file." else null
+        )
+    }
     return SelectedFile(uri, name, mime, size, extracted)
 }
 
