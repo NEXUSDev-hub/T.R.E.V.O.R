@@ -57,6 +57,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -390,11 +391,23 @@ private fun DashboardScreen(
             ) {
                 if (settings.orbEnabled) {
                     GlassPanel(
-                        Modifier.align(Alignment.Center).size(250.dp),
+                        Modifier.align(Alignment.Center).size(220.dp),
                         alpha = 0.22f
                     ) {
                         Box(Modifier.fillMaxSize()) {
                             var orbView by remember { mutableStateOf<TrevorOrbView?>(null) }
+                            val lifecycleOwner = LocalLifecycleOwner.current
+                            DisposableEffect(lifecycleOwner, orbView) {
+                                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                                    when (event) {
+                                        androidx.lifecycle.Lifecycle.Event.ON_RESUME -> orbView?.onResume()
+                                        androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> orbView?.onPause()
+                                        else -> Unit
+                                    }
+                                }
+                                lifecycleOwner.lifecycle.addObserver(observer)
+                                onDispose { lifecycleOwner.lifecycle.removeObserver(observer); orbView?.onPause() }
+                            }
                             AndroidView(
                                 modifier = Modifier.fillMaxSize().padding(10.dp).clip(CircleShape),
                                 factory = { ctx ->
@@ -419,10 +432,10 @@ private fun DashboardScreen(
                         }
                     }
 
-                    OrbitMode("ANALYSE", Icons.Filled.Analytics, TrevorMode.ANALYSE, orbitAngle, 0f, palette, mode == TrevorMode.ANALYSE) { mode = TrevorMode.ANALYSE }
-                    OrbitMode("RESEARCH", Icons.Filled.Science, TrevorMode.RESEARCH, orbitAngle, 90f, palette, mode == TrevorMode.RESEARCH) { mode = TrevorMode.RESEARCH }
-                    OrbitMode("PROJECT", Icons.Filled.Folder, TrevorMode.PROJECT, orbitAngle, 180f, palette, mode == TrevorMode.PROJECT) { mode = TrevorMode.PROJECT }
-                    OrbitMode("RATIO SHIFTER", Icons.Filled.Transform, TrevorMode.RATIO_SHIFTER, orbitAngle, 270f, palette, mode == TrevorMode.RATIO_SHIFTER) { mode = TrevorMode.RATIO_SHIFTER }
+                    OrbitMode("ANALYSE", Icons.Filled.Analytics, TrevorMode.ANALYSE, orbitAngle, 45f, palette, mode == TrevorMode.ANALYSE) { mode = TrevorMode.ANALYSE }
+                    OrbitMode("RESEARCH", Icons.Filled.Science, TrevorMode.RESEARCH, orbitAngle, 135f, palette, mode == TrevorMode.RESEARCH) { mode = TrevorMode.RESEARCH }
+                    OrbitMode("PROJECT", Icons.Filled.Folder, TrevorMode.PROJECT, orbitAngle, 225f, palette, mode == TrevorMode.PROJECT) { mode = TrevorMode.PROJECT }
+                    OrbitMode("RATIO SHIFTER", Icons.Filled.Transform, TrevorMode.RATIO_SHIFTER, orbitAngle, 315f, palette, mode == TrevorMode.RATIO_SHIFTER) { mode = TrevorMode.RATIO_SHIFTER }
                 }
 
                 GlassPanel(
@@ -497,7 +510,7 @@ private fun BoxScope.OrbitMode(
     onClick: () -> Unit
 ) {
     val radians = Math.toRadians((angle + phase).toDouble())
-    val radius = 138f
+    val radius = 150f
     val x = (cos(radians) * radius).toInt()
     val y = (sin(radians) * radius).toInt()
 
