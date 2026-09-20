@@ -161,13 +161,61 @@ private fun TrevorDashboard(
 
             if (landscape) {
                 Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    TrevorOrbStage(Modifier.weight(1.05f).fillMaxHeight(), settings, mode, state.orbState, accent) { mode = it }
+                    TrevorOrbStage(
+                        Modifier.weight(1.05f).fillMaxHeight(),
+                        settings,
+                        mode,
+                        state.orbState,
+                        accent
+                    ) { selected ->
+                        mode = selected
+                        TrevorStateStore.update {
+                            it.copy(
+                                currentMode = selected,
+                                orbState = when (selected) {
+                                    TrevorMode.NORMAL, TrevorMode.PROJECT, TrevorMode.RATIO_SHIFTER -> TrevorOrbState.IDLE
+                                    TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
+                                    TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
+                                },
+                                lastError = null
+                            )
+                        }
+                    }
                     Spacer(Modifier.width(12.dp))
-                    TrevorOutputPanel(Modifier.weight(0.95f).fillMaxHeight(), mode, output, attachment, onRemoveFile, accent)
+                    TrevorOutputPanel(
+                        Modifier.weight(0.95f).fillMaxHeight(),
+                        mode, output, attachment, onRemoveFile, accent
+                    ) { toolPrompt ->
+                        input = toolPrompt
+                    }
                 }
             } else {
-                TrevorOrbStage(Modifier.fillMaxWidth().weight(1f), settings, mode, state.orbState, accent) { mode = it }
-                TrevorOutputPanel(Modifier.fillMaxWidth().heightIn(min = 105.dp, max = 175.dp), mode, output, attachment, onRemoveFile, accent)
+                TrevorOrbStage(
+                    Modifier.fillMaxWidth().weight(1f),
+                    settings,
+                    mode,
+                    state.orbState,
+                    accent
+                ) { selected ->
+                    mode = selected
+                    TrevorStateStore.update {
+                        it.copy(
+                            currentMode = selected,
+                            orbState = when (selected) {
+                                TrevorMode.NORMAL, TrevorMode.PROJECT, TrevorMode.RATIO_SHIFTER -> TrevorOrbState.IDLE
+                                TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
+                                TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
+                            },
+                            lastError = null
+                        )
+                    }
+                }
+                TrevorOutputPanel(
+                    Modifier.fillMaxWidth().heightIn(min = 105.dp, max = 230.dp),
+                    mode, output, attachment, onRemoveFile, accent
+                ) { toolPrompt ->
+                    input = toolPrompt
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -257,34 +305,158 @@ private fun TrevorOutputPanel(
     output: String?,
     attachment: TrevorAttachment?,
     onRemoveFile: () -> Unit,
-    accent: Color
+    accent: Color,
+    onTool: (String) -> Unit
 ) {
     GlassPanel(modifier.animateContentSize(), 0.58f, accent.copy(alpha = 0.3f)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Text(if (output == null) mode.name + " WORKSPACE" else "TREVOR OUTPUT", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(5.dp))
+            Text(
+                if (output == null) mode.name + " WORKSPACE" else "TREVOR OUTPUT",
+                color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(7.dp))
+
+            if (output == null) {
+                TrevorModeWorkspace(mode, attachment, accent, onTool)
+                Spacer(Modifier.height(8.dp))
+            }
+
             attachment?.let {
                 Row(
-                    Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.42f), RoundedCornerShape(14.dp)).padding(7.dp),
+                    Modifier.fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.42f), RoundedCornerShape(14.dp))
+                        .padding(7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Filled.AttachFile, null, tint = accent, modifier = Modifier.size(16.dp))
                     Text(it.name, Modifier.weight(1f), fontSize = 11.sp, color = Color(0xFF31515D))
-                    IconButton(onClick = onRemoveFile, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Remove attachment") }
+                    IconButton(onClick = onRemoveFile, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Filled.Close, "Remove attachment")
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
             }
+
             Text(
                 output ?: when (mode) {
-                    TrevorMode.NORMAL -> "Ready. Ask a question or attach a file."
-                    TrevorMode.ANALYSE -> "Analyse workspace ready. Compatible text/source files can be attached."
-                    TrevorMode.RESEARCH -> "Research workspace ready. Search grounding is planned for Phase 2."
-                    TrevorMode.PROJECT -> "Project workspace ready. Project memory is planned for Phase 2."
-                    TrevorMode.RATIO_SHIFTER -> "Adaptive layout mode active."
+                    TrevorMode.NORMAL -> "Ready. Ask TREVOR anything."
+                    TrevorMode.ANALYSE -> if (attachment?.extractable == true)
+                        "File loaded. Choose an analysis tool or write your own instruction."
+                    else
+                        "Attach a supported text/code file to use file analysis."
+                    TrevorMode.RESEARCH -> "Research workspace. Enter a topic or use a research action below. Web grounding is a Phase 2 capability."
+                    TrevorMode.PROJECT -> "Project workspace. Use planning/debug/review actions with the current AI and file tools."
+                    TrevorMode.RATIO_SHIFTER -> "Adaptive layout is active. The interface is already responding to the device orientation and available space."
                 },
                 color = if (output?.startsWith("ERROR") == true) Color(0xFF9A3340) else Color(0xFF294A55),
                 fontSize = 13.sp, lineHeight = 18.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun TrevorModeWorkspace(
+    mode: TrevorMode,
+    attachment: TrevorAttachment?,
+    accent: Color,
+    onTool: (String) -> Unit
+) {
+    when (mode) {
+        TrevorMode.NORMAL -> {
+            Text("GENERAL ASSISTANT", color = Color(0xFF49636C), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(5.dp))
+            TrevorToolGrid(
+                listOf(
+                    "Explain a topic" to "Explain this clearly:",
+                    "Solve a problem" to "Solve this step by step:",
+                    "Write / rewrite" to "Help me write:",
+                    "Ask anything" to ""
+                ), accent, onTool
+            )
+        }
+        TrevorMode.ANALYSE -> {
+            Text("FILE + INFORMATION ANALYSIS", color = Color(0xFF49636C), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (attachment?.extractable == true) "Extracted text is available to TREVOR." else "No extractable text file attached.",
+                fontSize = 11.sp, color = Color(0xFF49636C)
+            )
+            Spacer(Modifier.height(5.dp))
+            TrevorToolGrid(
+                listOf(
+                    "Summarize" to "Summarize the attached file and identify the key points.",
+                    "Find issues" to "Analyse the attached file and identify errors, inconsistencies, or suspicious assumptions.",
+                    "Explain code" to "Analyse the attached code and explain how it works, including important functions and data flow.",
+                    "Key points" to "Extract the most important facts, decisions, risks, and open questions from the attached file."
+                ), accent, onTool
+            )
+        }
+        TrevorMode.RESEARCH -> {
+            Text("RESEARCH WORKSPACE", color = Color(0xFF49636C), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("Current tools: Gemini reasoning + supported file context. Search grounding is not enabled yet.", fontSize = 11.sp, color = Color(0xFF49636C))
+            Spacer(Modifier.height(5.dp))
+            TrevorToolGrid(
+                listOf(
+                    "Research topic" to "Research this topic carefully and separate established facts from uncertainty:",
+                    "Compare" to "Compare these topics using clear criteria and explain the evidence:",
+                    "Check claims" to "Examine these claims, identify what is established, uncertain, or needs verification:",
+                    "Research file" to "Analyse the attached file as research material and identify its claims, evidence, and gaps."
+                ), accent, onTool
+            )
+        }
+        TrevorMode.PROJECT -> {
+            Text("PROJECT WORKSPACE", color = Color(0xFF49636C), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("Current tools: Gemini + file context + TREVOR's project-mode routing. Persistent project memory comes later.", fontSize = 11.sp, color = Color(0xFF49636C))
+            Spacer(Modifier.height(5.dp))
+            TrevorToolGrid(
+                listOf(
+                    "Plan project" to "Help me create a practical project plan for:",
+                    "Debug" to "Help me debug this project. Analyse the attached code/context and identify likely problems:",
+                    "Architecture" to "Review this project's architecture and suggest necessary improvements without unnecessary restructuring:",
+                    "Checklist" to "Create a development checklist for this project based on the supplied context:"
+                ), accent, onTool
+            )
+        }
+        TrevorMode.RATIO_SHIFTER -> {
+            Text("ADAPTIVE UI WORKSPACE", color = Color(0xFF49636C), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("Ratio Shifter uses the available screen dimensions to adapt the orb, satellites, workspace, output and input layout.", fontSize = 11.sp, color = Color(0xFF49636C))
+            Spacer(Modifier.height(5.dp))
+            TrevorToolGrid(
+                listOf(
+                    "Explain layout" to "Explain how TREVOR should adapt its UI for this device:",
+                    "Portrait plan" to "Create a compact portrait layout plan for TREVOR:",
+                    "Landscape plan" to "Create a wide landscape layout plan for TREVOR:",
+                    "Responsive review" to "Review this TREVOR UI requirement for responsive layout problems:"
+                ), accent, onTool
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrevorToolGrid(
+    tools: List<Pair<String, String>>,
+    accent: Color,
+    onTool: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        tools.chunked(2).forEach { rowTools ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                rowTools.forEach { (label, prompt) ->
+                    Surface(
+                        modifier = Modifier.weight(1f).clickable { onTool(prompt) },
+                        color = Color.White.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.22f))
+                    ) {
+                        Text(
+                            label, Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+                            color = Color(0xFF31515D), fontSize = 10.sp, fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                if (rowTools.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
