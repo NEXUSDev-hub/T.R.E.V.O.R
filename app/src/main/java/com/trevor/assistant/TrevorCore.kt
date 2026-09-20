@@ -35,7 +35,6 @@ object TrevorCore {
             is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
             is TrevorEngineResult.Error -> TrevorCoreResult.Error(local.message)
             is TrevorEngineResult.NeedAI -> when {
-                offlineFirst -> TrevorCoreResult.Error("Offline-first mode is enabled and this request is not available locally.")
                 !aiEnabled -> TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
                 !geminiEnabled -> TrevorCoreResult.Error("Gemini AI is disabled. Enable Gemini in Settings.")
                 else -> {
