@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -202,7 +204,7 @@ private fun TrevorDashboard(
                         Spacer(Modifier.width(8.dp))
                         StatusPill(visual.title, visual.accent)
                     }
-                    Text("The Really Efficient Virtual Operation Robot", color = Color(0xFF9FC4D0), fontSize = 10.sp)
+                    Text(TrevorIdentity.FULL_NAME + " • Made by " + TrevorIdentity.CREATORS, color = Color(0xFF9FC4D0), fontSize = 10.sp)
                     Text("${TrevorVersion.label(context)}  •  ${state.orbState.name}", color = visual.accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 }
                 IconButton(onClick = onSettings) {
