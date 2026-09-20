@@ -615,7 +615,7 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun IceScreen(iceFrost: Boolean, content: @Composable ColumnScope.() -> Unit) {
+private fun IceScreen(iceFrost: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
