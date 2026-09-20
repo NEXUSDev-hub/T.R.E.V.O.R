@@ -20,5 +20,5 @@ object TrevorModeRouter {
         phrases.sumOf { if (text.contains(it)) 1 else 0 }
 
     private fun containsAny(text: String, vararg phrases: String): Boolean =
-        phrases.any(text::contains)
+        phrases.any { phrase -> text.contains(phrase) }
 }
