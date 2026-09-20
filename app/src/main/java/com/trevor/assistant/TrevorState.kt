@@ -41,13 +41,9 @@ enum class TrevorAiState {
 
 /**
  * Single observable runtime state for the TREVOR Core.
- *
- * UI components can observe this state without owning the application's
- * processing truth. Future memory, files, Android actions and verification
- * systems can extend this model without rebuilding the UI contract.
  */
 data class TrevorState(
-    val currentMode: TrevorMode? = null,
+    val currentMode: TrevorMode? = TrevorMode.NORMAL,
     val orbState: TrevorOrbState = TrevorOrbState.IDLE,
     val requestState: TrevorRequestState = TrevorRequestState.IDLE,
     val fileState: TrevorFileState = TrevorFileState.NONE,
