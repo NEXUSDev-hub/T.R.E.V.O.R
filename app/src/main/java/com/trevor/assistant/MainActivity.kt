@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -292,23 +295,22 @@ private fun TrevorOrbStage(
     onMode: (TrevorMode) -> Unit
 ) {
     BoxWithConstraints(modifier) {
+        val density = LocalDensity.current
         val minDimension = minOf(maxWidth.value, maxHeight.value)
         val radius = (minDimension * 0.47f).coerceIn(150f, 255f).dp
+        val radiusPx = with(density) { radius.toPx() }
         val angle by rememberInfiniteTransition(label = "orbital").animateFloat(
             0f, 360f,
             infiniteRepeatable(tween(22000, easing = LinearEasing)),
             label = "orbitalAngle"
         )
+        val drags = remember { mutableStateMapOf<TrevorMode, Offset>() }
 
         Box(
             Modifier.align(Alignment.Center)
                 .size((minDimension * 0.58f).coerceIn(220f, 300f).dp)
                 .clip(RoundedCornerShape(999.dp))
-                .background(
-                    Brush.radialGradient(
-                        listOf(accent.copy(alpha = 0.15f), Color.Transparent)
-                    )
-                )
+                .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.15f), Color.Transparent)))
         )
 
         var orbView by remember { mutableStateOf<TrevorOrbView?>(null) }
@@ -344,19 +346,23 @@ private fun TrevorOrbStage(
             }
         }
 
-        val modes = listOf(
-            TrevorMode.ANALYSE, TrevorMode.RESEARCH, TrevorMode.PROJECT, TrevorMode.TERMINAL
-        )
+        val modes = listOf(TrevorMode.ANALYSE, TrevorMode.RESEARCH, TrevorMode.PROJECT, TrevorMode.TERMINAL)
         modes.forEachIndexed { index, mode ->
             val theta = Math.toRadians((angle + index * 90f - 45f).toDouble())
-            val x = (cos(theta) * radius.value).toInt()
-            val y = (sin(theta) * radius.value).toInt()
+            val base = Offset((cos(theta) * radiusPx).toFloat(), (sin(theta) * radiusPx).toFloat())
+            val drag = drags[mode] ?: Offset.Zero
             val mv = modeVisual(mode)
             Surface(
                 Modifier.align(Alignment.Center)
-                    .offset { IntOffset(x, y) }
-                    .heightIn(min = 50.dp)
-                    .clickable { onMode(mode) },
+                    .offset { IntOffset((base.x + drag.x).toInt(), (base.y + drag.y).toInt()) }
+                    .pointerInput(mode) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            drags[mode] = (drags[mode] ?: Offset.Zero) + dragAmount
+                        }
+                    }
+                    .clickable { onMode(mode) }
+                    .heightIn(min = 50.dp),
                 color = Color(0xFF081A28).copy(alpha = if (selectedMode == mode) 0.95f else 0.78f),
                 shape = RoundedCornerShape(18.dp),
                 border = BorderStroke(1.dp, mv.accent.copy(alpha = if (selectedMode == mode) 0.9f else 0.38f)),
@@ -371,13 +377,24 @@ private fun TrevorOrbStage(
         }
 
         val ratio = modeVisual(TrevorMode.RATIO_SHIFTER)
+        val ratioDrag = drags[TrevorMode.RATIO_SHIFTER] ?: Offset.Zero
         Surface(
-            Modifier.align(Alignment.Center).offset(y = radius),
+            Modifier.align(Alignment.Center)
+                .offset { IntOffset(ratioDrag.x.toInt(), (radiusPx + ratioDrag.y).toInt()) }
+                .pointerInput(TrevorMode.RATIO_SHIFTER) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        drags[TrevorMode.RATIO_SHIFTER] = (drags[TrevorMode.RATIO_SHIFTER] ?: Offset.Zero) + dragAmount
+                    }
+                },
             color = Color(0xFF081A28).copy(alpha = 0.82f),
             shape = RoundedCornerShape(18.dp),
             border = BorderStroke(1.dp, ratio.accent.copy(alpha = if (selectedMode == TrevorMode.RATIO_SHIFTER) 0.9f else 0.38f))
         ) {
-            Row(Modifier.clickable { onMode(TrevorMode.RATIO_SHIFTER) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.clickable { onMode(TrevorMode.RATIO_SHIFTER) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(ratio.icon, null, tint = ratio.accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(5.dp))
                 Text("RATIO SHIFTER", color = Color(0xFFDFF9FF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
