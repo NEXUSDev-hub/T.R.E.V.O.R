@@ -1,6 +1,7 @@
 package com.trevor.assistant
 
 import android.content.Context
+import kotlinx.coroutines.yield
 
 object TrevorCore {
     suspend fun process(
@@ -24,6 +25,16 @@ object TrevorCore {
                 orbState = TrevorOrbState.THINKING,
                 aiState = if (aiEnabled && geminiEnabled) TrevorAiState.READY else TrevorAiState.DISABLED,
                 lastError = null
+            )
+        }
+        yield()
+        TrevorStateStore.update {
+            it.copy(
+                orbState = when (resolvedMode) {
+                    TrevorMode.NORMAL, TrevorMode.PROJECT, TrevorMode.RATIO_SHIFTER -> TrevorOrbState.THINKING
+                    TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
+                    TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
+                }
             )
         }
 
