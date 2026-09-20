@@ -699,7 +699,7 @@ private fun DeveloperScreen(context: Context, settings: TrevorSettings, onBack: 
     IceScreen {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
             }
             Text("Diagnostics", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF173A48))
         }
@@ -725,7 +725,7 @@ private fun ApiKeyScreen(context: Context, onBack: () -> Unit) {
     IceScreen {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
             }
             Text("Gemini API Key", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF173A48))
         }
