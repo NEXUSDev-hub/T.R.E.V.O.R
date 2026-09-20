@@ -220,7 +220,7 @@ private fun TrevorDashboard(
                     )
                     TrevorOutputPanel(
                         Modifier.weight(0.95f).fillMaxHeight(),
-                        mode, state.lastOutput, attachment, onRemoveFile, visual.accent, ::selectMode, ::runTool
+                        mode, state.lastOutput, attachment, onRemoveFile, visual.accent, ::selectMode, { prompt -> input = prompt }
                     )
                 }
             } else {
@@ -231,7 +231,7 @@ private fun TrevorDashboard(
                 Spacer(Modifier.height(8.dp))
                 TrevorOutputPanel(
                     Modifier.fillMaxWidth().weight(0.48f).heightIn(min = 170.dp),
-                    mode, state.lastOutput, attachment, onRemoveFile, visual.accent, ::selectMode, ::runTool
+                    mode, state.lastOutput, attachment, onRemoveFile, visual.accent, ::selectMode, { prompt -> input = prompt }
                 )
             }
 
@@ -270,10 +270,6 @@ private fun TrevorDashboard(
             }
         }
     }
-}
-
-private fun runTool(prompt: String, mode: TrevorMode, setInput: (String) -> Unit) {
-    setInput(prompt)
 }
 
 @Composable
@@ -389,7 +385,7 @@ private fun TrevorOutputPanel(
     onRemoveFile: () -> Unit,
     accent: Color,
     onMode: (TrevorMode) -> Unit,
-    onTool: (String, TrevorMode, (String) -> Unit) -> Unit
+    onTool: (String) -> Unit
 ) {
     val visual = modeVisual(mode)
     FrostPanel(modifier.animateContentSize(), accent) {
@@ -436,7 +432,7 @@ private fun TrevorOutputPanel(
 }
 
 @Composable
-private fun NormalWorkspace(accent: Color, onTool: (String, TrevorMode, (String) -> Unit) -> Unit) {
+private fun NormalWorkspace(accent: Color, onTool: (String) -> Unit) {
     WorkspaceHeader("GENERAL TOOLS", "Fast local tools first; Gemini when needed.", accent)
     ToolGrid(listOf(
         "Explain" to "Explain this clearly:",
@@ -532,7 +528,7 @@ private fun ToolGrid(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 row.forEach { (label, prompt) ->
                     Surface(
-                        Modifier.weight(1f).heightIn(min = 48.dp).clickable { onTool(prompt, mode) { } },
+                        Modifier.weight(1f).heightIn(min = 48.dp).clickable { onTool(prompt) },
                         color = Color(0xFF0B2230).copy(alpha = 0.78f),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, accent.copy(alpha = 0.20f))
