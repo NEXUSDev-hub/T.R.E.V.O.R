@@ -362,7 +362,7 @@ private fun TrevorOrbStage(
 
         val ratio = modeVisual(TrevorMode.RATIO_SHIFTER)
         Surface(
-            Modifier.align(Alignment.Center).offset(y = radius.value.toInt()),
+            Modifier.align(Alignment.Center).offset(y = radius),
             color = Color(0xFF081A28).copy(alpha = 0.82f),
             shape = RoundedCornerShape(18.dp),
             border = BorderStroke(1.dp, ratio.accent.copy(alpha = if (selectedMode == TrevorMode.RATIO_SHIFTER) 0.9f else 0.38f))
