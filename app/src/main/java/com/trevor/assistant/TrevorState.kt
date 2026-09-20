@@ -4,14 +4,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-enum class TrevorOrbState {
-    IDLE, LISTENING, THINKING, ANALYSING, RESEARCHING, PROCESSING_FILE, EXECUTING, SUCCESS, ERROR
-}
-
+enum class TrevorOrbState { IDLE, LISTENING, THINKING, ANALYSING, RESEARCHING, PROCESSING_FILE, EXECUTING, SUCCESS, ERROR }
 enum class TrevorRequestState { IDLE, PROCESSING, SUCCESS, ERROR }
-
 enum class TrevorFileState { NONE, SELECTED, VALIDATING, EXTRACTING, READY, ERROR }
-
 enum class TrevorAiState { DISABLED, READY, PROCESSING, ERROR }
 
 data class TrevorState(
@@ -28,10 +23,6 @@ data class TrevorState(
 object TrevorStateStore {
     private val mutableState = MutableStateFlow(TrevorState())
     val state: StateFlow<TrevorState> = mutableState.asStateFlow()
-
-    internal fun update(transform: (TrevorState) -> TrevorState) {
-        mutableState.value = transform(mutableState.value)
-    }
-
+    internal fun update(transform: (TrevorState) -> TrevorState) { mutableState.value = transform(mutableState.value) }
     fun reset() { mutableState.value = TrevorState() }
 }
