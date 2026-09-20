@@ -2,6 +2,8 @@ package com.trevor.assistant
 
 import android.content.Context
 import android.os.Bundle
+import android.os.Build
+import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -83,6 +85,9 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.rgb(5, 15, 26)
         window.navigationBarColor = android.graphics.Color.rgb(5, 15, 26)
         window.decorView.systemUiVisibility = 0
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 730)
+        }
         setContent {
             TrevorApp(
                 this,
