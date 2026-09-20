@@ -215,14 +215,26 @@ private fun inspectFile(context: Context, uri: Uri): SelectedFile {
         name.endsWith(".md", true) ||
         name.endsWith(".csv", true)
 
+    TrevorStateStore.update { it.copy(fileState = TrevorFileState.VALIDATING) }
     val extracted = if (textLike) {
+        TrevorStateStore.update { it.copy(fileState = TrevorFileState.EXTRACTING, orbState = TrevorOrbState.PROCESSING_FILE) }
         runCatching {
-            resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(200_000) }
+            resolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                val out = StringBuilder()
+                val buffer = CharArray(8192)
+                while (out.length < 50_000) {
+                    val remaining = 50_000 - out.length
+                    val read = reader.read(buffer, 0, minOf(buffer.size, remaining))
+                    if (read <= 0) break
+                    out.append(buffer, 0, read)
+                }
+                out.toString()
+            }
         }.getOrNull()
     } else {
         null
     }
-
+    TrevorStateStore.update { it.copy(fileState = TrevorFileState.READY, orbState = TrevorOrbState.IDLE) }
     return SelectedFile(uri, name, mime, size, extracted)
 }
 
@@ -290,14 +302,19 @@ private fun DashboardScreen(
         busy = true
         status = "PROCESSING • " + mode.name
         scope.launch {
+            val injected = selectedFile?.extractedText?.let {
+                clean + "\n\nAttached file: " + selectedFile.name + "\n" + it
+            } ?: selectedFile?.let {
+                clean + "\n\nAttached file metadata: " + it.name + " (" + it.mime + ")"
+            } ?: clean
             val result = TrevorCore.process(
                 context = context,
-                command = clean,
+                command = injected,
                 aiEnabled = settings.aiEnabled,
                 geminiEnabled = settings.geminiEnabled,
                 conciseResponses = settings.conciseResponses,
                 technicalDetail = settings.technicalDetail,
-                mode = mode.takeUnless { it == TrevorMode.NORMAL }
+                    mode = mode.takeUnless { it == TrevorMode.NORMAL }
             )
             status = when (result) {
                 is TrevorCoreResult.Answer -> "READY • " + mode.name
@@ -319,14 +336,11 @@ private fun DashboardScreen(
         Modifier
             .fillMaxSize()
             .background(
-                Brush.radialGradient(
-                    listOf(
-                        Color(0xFFF9FEFF),
-                        Color(0xFFE8F7FB),
-                        Color(0xFFD7EEF4),
-                        Color(0xFFC7E3EA)
-                    )
-                )
+                if (settings.iceFrost) {
+                    Brush.radialGradient(listOf(Color(0xFFF9FEFF), Color(0xFFE8F7FB), Color(0xFFD7EEF4), Color(0xFFC7E3EA)))
+                } else {
+                    Brush.radialGradient(listOf(Color.White, Color(0xFFF4F6F7)))
+                }
             )
     ) {
         Column(Modifier.fillMaxSize().padding(14.dp)) {
@@ -595,11 +609,11 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun IceScreen(content: @Composable ColumnScope.() -> Unit) {
+private fun IceScreen(iceFrost: Boolean, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFF9FEFF), Color(0xFFE4F5F9), Color(0xFFD2EAF0))))
+            .background(if (iceFrost) Brush.verticalGradient(listOf(Color(0xFFF9FEFF), Color(0xFFE4F5F9), Color(0xFFD2EAF0))) else Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F6F7))))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content
