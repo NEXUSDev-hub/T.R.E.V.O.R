@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Transform
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -62,7 +63,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { TrevorApp(this, attachment, { picker.launch(arrayOf("*/*")) }, { attachment = null }) }
+        setContent {
+            TrevorApp(
+                this,
+                attachment,
+                { picker.launch(arrayOf("*/*")) },
+                {
+                    attachment = null
+                    TrevorStateStore.update {
+                        it.copy(
+                            fileState = TrevorFileState.NONE,
+                            orbState = TrevorOrbState.IDLE,
+                            lastError = null
+                        )
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -111,6 +128,7 @@ private fun TrevorDashboard(
         if (clean.isBlank() || busy) return
         busy = true
         output = null
+        input = ""
         TrevorStateStore.update { it.copy(orbState = TrevorOrbState.THINKING, requestState = TrevorRequestState.PROCESSING) }
         scope.launch {
             val prompt = buildString {
@@ -219,8 +237,17 @@ private fun TrevorDashboard(
                 IconButton(onClick = onPickFile, enabled = !busy) { Icon(Icons.Filled.AttachFile, "Attach file", tint = accent) }
                 OutlinedTextField(
                     value = input, onValueChange = { input = it },
-                    modifier = Modifier.weight(1f), placeholder = { Text("Ask TREVOR…") },
-                    maxLines = 3, shape = RoundedCornerShape(26.dp)
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Ask TREVOR…") },
+                    maxLines = 3,
+                    shape = RoundedCornerShape(26.dp),
+                    trailingIcon = {
+                        if (input.isNotEmpty()) {
+                            IconButton(onClick = { input = "" }, enabled = !busy) {
+                                Icon(Icons.Filled.Close, "Clear command")
+                            }
+                        }
+                    }
                 )
                 IconButton(onClick = ::send, enabled = !busy && input.isNotBlank()) {
                     Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = accent)
@@ -250,11 +277,14 @@ private fun TrevorOrbStage(
             label = "satelliteAngle"
         ).value
 
+        var orbView by remember { mutableStateOf<TrevorOrbView?>(null) }
+
         if (settings.orbEnabled) {
             AndroidView(
                 modifier = Modifier.size(if (maxWidth < 380.dp) 190.dp else 215.dp).align(Alignment.Center),
                 factory = { ctx ->
                     TrevorOrbView(ctx).apply {
+                        orbView = this
                         setAccent(accent.toArgb())
                         setAnimated(settings.animations)
                         setState(orbState)
@@ -266,6 +296,15 @@ private fun TrevorOrbStage(
                     it.setState(orbState)
                 }
             )
+        }
+
+        if (settings.orbEnabled) {
+            IconButton(
+                onClick = { orbView?.resetView() },
+                modifier = Modifier.align(Alignment.Center).offset(y = 122.dp)
+            ) {
+                Icon(Icons.Filled.Refresh, "Reset orb view", tint = accent)
+            }
         }
 
         listOf(
