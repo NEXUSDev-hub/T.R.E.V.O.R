@@ -47,7 +47,7 @@ object TrevorCore {
             return finish(TrevorCoreResult.Answer(result))
         }
 
-        val prompt = buildPrompt(clean, resolvedMode, conciseResponses, technicalDetail, attachment)
+        val prompt = buildPrompt(context, clean, resolvedMode, conciseResponses, technicalDetail, attachment)
         val result = if (offlineFirst && attachment == null && resolvedMode == TrevorMode.NORMAL) {
             when (val local = TrevorLocalEngine.processCommand(clean)) {
                 is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
@@ -69,6 +69,7 @@ object TrevorCore {
     }
 
     private suspend fun requestAi(
+        context: Context,
         context: Context,
         input: String,
         mode: TrevorMode,
