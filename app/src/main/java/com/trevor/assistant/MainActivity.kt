@@ -64,7 +64,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -369,6 +368,7 @@ private fun TrevorApp(
         Screen.DEVELOPER -> {
 
             DeveloperScreen(
+                context = context,
                 settings = settings,
 
                 onBack = {
@@ -465,7 +465,7 @@ private fun DashboardScreen(
 
                             Text(
                                 text =
-                                    TrevorVersion.label(LocalContext.current) + " • " +
+                                    TrevorVersion.label(context) + " • " +
                                         if (busy) { "THINKING" } else { "ONLINE" },
                                 fontSize = 11.sp,
                                 color = Color(0xFF91AEBB)
@@ -1340,6 +1340,7 @@ private fun SettingButton(
 
 @Composable
 private fun DeveloperScreen(
+    context: Context,
     settings: TrevorSettings,
     onBack: () -> Unit
 ) {
