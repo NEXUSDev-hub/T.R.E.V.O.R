@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.launch
 import kotlin.math.cos
@@ -53,12 +54,20 @@ class MainActivity : ComponentActivity() {
     private var attachment by mutableStateOf<TrevorAttachment?>(null)
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
-        TrevorFileService.inspect(this, uri)
-            .onSuccess { attachment = it }
-            .onFailure { error ->
-                attachment = null
-                TrevorStateStore.update { it.copy(fileState = TrevorFileState.ERROR, orbState = TrevorOrbState.ERROR, lastError = error.message) }
-            }
+        lifecycleScope.launch {
+            TrevorFileService.inspect(this@MainActivity, uri)
+                .onSuccess { attachment = it }
+                .onFailure { error ->
+                    attachment = null
+                    TrevorStateStore.update {
+                        it.copy(
+                            fileState = TrevorFileState.ERROR,
+                            orbState = TrevorOrbState.ERROR,
+                            lastError = error.message
+                        )
+                    }
+                }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
