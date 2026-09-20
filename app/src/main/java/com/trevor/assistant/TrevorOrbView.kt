@@ -5,6 +5,7 @@ import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.view.MotionEvent
+import android.graphics.PixelFormat
 import android.view.ScaleGestureDetector
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -26,6 +27,9 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
     private var lastY = 0f
 
     init {
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+        holder.setFormat(PixelFormat.TRANSLUCENT)
+        setZOrderOnTop(true)
         setEGLContextClientVersion(2)
         setRenderer(renderer)
         renderMode = RENDERMODE_CONTINUOUSLY
@@ -95,7 +99,7 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
         fun resetView() { yaw = 0f; pitch = 8f; zoom = 1f }
 
         override fun onSurfaceCreated(gl: javax.microedition.khronos.opengles.GL10?, config: javax.microedition.khronos.egl.EGLConfig?) {
-            GLES20.glClearColor(0.82f, 0.93f, 0.96f, 1f)
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             program = buildProgram(VERTEX, FRAGMENT)
@@ -243,21 +247,26 @@ class TrevorOrbView(context: Context) : GLSurfaceView(context) {
             uniform float uState;
             varying float vLight;
             void main() {
-                vec3 ice = vec3(0.72, 0.96, 1.0);
+                vec3 n = normalize(vec3(
+                    sign(vLight - 0.5) * 0.001 + 0.001,
+                    0.7,
+                    1.0
+                ));
+                vec3 ice = vec3(0.66, 0.94, 1.0);
                 vec3 stateTint = uColor.rgb;
-                if (uState > 7.5) {
-                    stateTint = vec3(1.0, 0.25, 0.30);
-                } else if (uState > 6.5) {
-                    stateTint = vec3(0.25, 1.0, 0.72);
-                } else if (uState > 4.5) {
-                    stateTint = mix(uColor.rgb, vec3(0.30, 0.72, 1.0), 0.35);
-                } else if (uState > 3.5) {
-                    stateTint = mix(uColor.rgb, vec3(0.50, 0.38, 1.0), 0.28);
-                }
-                float rim = 0.90 + uPulse * 0.24;
-                vec3 base = mix(ice, stateTint, 0.62);
-                vec3 lit = base * vLight * uIntensity * rim + vec3(0.08, 0.14, 0.16);
-                gl_FragColor = vec4(lit, 1.0);
+                if (uState > 7.5) stateTint = vec3(1.0, 0.20, 0.28);
+                else if (uState > 6.5) stateTint = vec3(0.25, 1.0, 0.70);
+                else if (uState > 4.5) stateTint = mix(uColor.rgb, vec3(0.30, 0.72, 1.0), 0.38);
+                else if (uState > 3.5) stateTint = mix(uColor.rgb, vec3(0.58, 0.40, 1.0), 0.34);
+
+                float crystal = 0.78 + 0.22 * abs(sin((vLight + uPulse) * 12.0));
+                float rim = 0.86 + uPulse * 0.30;
+                vec3 base = mix(ice, stateTint, 0.58);
+                vec3 lit = base * vLight * uIntensity * rim * crystal;
+                float edgeGlow = pow(1.0 - vLight, 2.0) * (0.35 + uPulse * 0.35);
+                lit += stateTint * edgeGlow;
+                lit += vec3(0.08, 0.18, 0.22);
+                gl_FragColor = vec4(lit, 0.94);
             }
         """
     }
