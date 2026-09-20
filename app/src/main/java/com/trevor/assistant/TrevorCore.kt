@@ -21,40 +21,70 @@ object TrevorCore {
             it.copy(
                 currentMode = resolvedMode,
                 requestState = TrevorRequestState.PROCESSING,
-                orbState = when (resolvedMode) {
-                    TrevorMode.NORMAL, TrevorMode.PROJECT, TrevorMode.RATIO_SHIFTER -> TrevorOrbState.THINKING
-                    TrevorMode.ANALYSE -> TrevorOrbState.ANALYSING
-                    TrevorMode.RESEARCH -> TrevorOrbState.RESEARCHING
-                },
+                orbState = TrevorOrbState.THINKING,
                 aiState = if (aiEnabled && geminiEnabled) TrevorAiState.READY else TrevorAiState.DISABLED,
                 lastError = null
             )
         }
 
-        val result = when (val local = TrevorLocalEngine.processCommand(clean)) {
-            is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
-            is TrevorEngineResult.Error -> TrevorCoreResult.Error(local.message)
-            is TrevorEngineResult.NeedAI -> when {
-                !aiEnabled -> TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
-                !geminiEnabled -> TrevorCoreResult.Error("Gemini AI is disabled. Enable Gemini in Settings.")
-                else -> {
-                    val key = SecureApiKeyStore.load(context.applicationContext)
-                    if (key.isNullOrBlank()) {
-                        TrevorCoreResult.Error("Gemini API key is not configured.\nOpen Settings → Gemini API Key.")
-                    } else {
-                        TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
-                        GeminiAiProvider.ask(
-                            apiKey = key,
-                            prompt = buildPrompt(clean, resolvedMode, conciseResponses, technicalDetail)
-                        ).fold(
-                            onSuccess = { TrevorCoreResult.Answer(it) },
-                            onFailure = { error -> TrevorCoreResult.Error("Gemini request failed:\n" + (error.message ?: "Unknown error")) }
-                        )
-                    }
+        val result = if (offlineFirst) {
+            val local = TrevorLocalEngine.processCommand(clean)
+            when (local) {
+                is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
+                is TrevorEngineResult.Error -> TrevorCoreResult.Error(local.message)
+                is TrevorEngineResult.NeedAI -> requestAi(
+                    context, local.prompt, resolvedMode, aiEnabled, geminiEnabled,
+                    conciseResponses, technicalDetail
+                )
+            }
+        } else {
+            val aiResult = requestAi(
+                context, clean, resolvedMode, aiEnabled, geminiEnabled,
+                conciseResponses, technicalDetail
+            )
+            if (aiResult is TrevorCoreResult.Answer) {
+                aiResult
+            } else {
+                when (val local = TrevorLocalEngine.processCommand(clean)) {
+                    is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
+                    is TrevorEngineResult.Error -> aiResult
+                    is TrevorEngineResult.NeedAI -> aiResult
                 }
             }
         }
+
         return finish(result)
+    }
+
+    private suspend fun requestAi(
+        context: Context,
+        input: String,
+        mode: TrevorMode,
+        aiEnabled: Boolean,
+        geminiEnabled: Boolean,
+        conciseResponses: Boolean,
+        technicalDetail: Boolean
+    ): TrevorCoreResult {
+        if (!aiEnabled) return TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
+        if (!geminiEnabled) return TrevorCoreResult.Error("Gemini AI is disabled. Enable Gemini in Settings.")
+
+        val key = SecureApiKeyStore.load(context.applicationContext)
+            ?: return TrevorCoreResult.Error("Gemini API key is not configured.\nOpen Settings → Gemini API Key.")
+
+        if (key.isBlank()) {
+            return TrevorCoreResult.Error("Gemini API key is not configured.\nOpen Settings → Gemini API Key.")
+        }
+
+        TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
+        return GeminiAiProvider.ask(
+            apiKey = key,
+            prompt = buildPrompt(input, mode, conciseResponses, technicalDetail)
+        ).fold(
+            onSuccess = { TrevorCoreResult.Answer(it) },
+            onFailure = { error ->
+                TrevorCoreResult.Error("Gemini request failed:\n" + (error.message ?: "Unknown error"))
+            }
+        )
     }
 
     private fun finish(result: TrevorCoreResult): TrevorCoreResult {
@@ -77,9 +107,22 @@ object TrevorCore {
         return result
     }
 
-    private fun buildPrompt(input: String, mode: TrevorMode, conciseResponses: Boolean, technicalDetail: Boolean): String {
-        val responseStyle = if (conciseResponses) "Keep responses concise while still answering correctly." else "Give a reasonably detailed response."
-        val technicalStyle = if (technicalDetail) "Technical details are welcome when useful." else "Prefer simple explanations and avoid unnecessary technical detail."
+    private fun buildPrompt(
+        input: String,
+        mode: TrevorMode,
+        conciseResponses: Boolean,
+        technicalDetail: Boolean
+    ): String {
+        val responseStyle = if (conciseResponses) {
+            "Keep responses concise while still answering correctly."
+        } else {
+            "Give a reasonably detailed response."
+        }
+        val technicalStyle = if (technicalDetail) {
+            "Technical details are welcome when useful."
+        } else {
+            "Prefer simple explanations and avoid unnecessary technical detail."
+        }
         val modeInstruction = when (mode) {
             TrevorMode.NORMAL -> "Act as a general personal assistant. Answer naturally and conversationally."
             TrevorMode.PROJECT -> "Treat this as project work. Help plan, build, organize, debug, or reason through the project."
