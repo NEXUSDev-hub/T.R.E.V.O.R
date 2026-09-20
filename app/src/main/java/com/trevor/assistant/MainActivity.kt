@@ -37,14 +37,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeveloperMode
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -483,7 +483,7 @@ private fun DashboardScreen(
                         Icon(Icons.Filled.Refresh, "Clear input", tint = Color(0xFF58727B))
                     }
                     IconButton(onClick = { send() }, enabled = input.isNotBlank() && !busy) {
-                        Icon(Icons.Filled.Send, "Send", tint = palette)
+                        Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = palette)
                     }
                 }
             }
@@ -562,7 +562,7 @@ private fun SettingsScreen(
     IceScreen {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color(0xFF31515D))
             }
             Text("Settings", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF173A48))
         }
