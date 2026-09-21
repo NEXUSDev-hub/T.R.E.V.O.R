@@ -78,54 +78,54 @@ private class TrevorHttpProvider(private val provider: TrevorProviderId) {
             runCatching {
                 val spec = TrevorProviderRegistry.spec(provider)
                 when (spec.protocol) {
-                    TrevorProviderProtocol.OPENAI_COMPATIBLE -> openAi(spec.endpoint, key, model.id, prompt)
-                    TrevorProviderProtocol.ANTHROPIC -> anthropic(spec.endpoint, key, model.id, prompt)
-                    TrevorProviderProtocol.COHERE -> cohere(spec.endpoint, key, model.id, prompt)
-                    TrevorProviderProtocol.GEMINI -> gemini(spec.endpoint, key, model.id, prompt)
+                    TrevorProviderProtocol.OPENAI_COMPATIBLE -> openAi(context, spec.endpoint, key, model.id, prompt)
+                    TrevorProviderProtocol.ANTHROPIC -> anthropic(context, spec.endpoint, key, model.id, prompt)
+                    TrevorProviderProtocol.COHERE -> cohere(context, spec.endpoint, key, model.id, prompt)
+                    TrevorProviderProtocol.GEMINI -> gemini(context, spec.endpoint, key, model.id, prompt)
                 }
             }.fold({ Result.success(it) }, { Result.failure(RuntimeException(it.message ?: "Provider request failed.", it)) })
         }
 
-    private fun openAi(base: String, key: String, model: String, prompt: String): String {
+    private fun openAi(context: Context, base: String, key: String, model: String, prompt: String): String {
         val body = JSONObject()
             .put("model", model)
             .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
-        val response = post("$base/chat/completions", mapOf("Authorization" to "Bearer $key"), body)
+        val response = post(context, "$base/chat/completions", mapOf("Authorization" to "Bearer $key"), body)
         val json = JSONObject(response)
         val text = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
         return require(!text.isNullOrBlank()) { responseMessage(json) }.let { text }
     }
 
-    private fun anthropic(base: String, key: String, model: String, prompt: String): String {
+    private fun anthropic(context: Context, base: String, key: String, model: String, prompt: String): String {
         val body = JSONObject()
             .put("model", model)
             .put("max_tokens", 4096)
             .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
-        val json = JSONObject(post("$base/messages", mapOf("x-api-key" to key, "anthropic-version" to "2023-06-01"), body))
+        val json = JSONObject(post(context, "$base/messages", mapOf("x-api-key" to key, "anthropic-version" to "2023-06-01"), body))
         val text = json.optJSONArray("content")?.optJSONObject(0)?.optString("text")
         return require(!text.isNullOrBlank()) { responseMessage(json) }.let { text }
     }
 
-    private fun cohere(base: String, key: String, model: String, prompt: String): String {
+    private fun cohere(context: Context, base: String, key: String, model: String, prompt: String): String {
         val body = JSONObject().put("model", model)
             .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
-        val json = JSONObject(post("$base/chat", mapOf("Authorization" to "Bearer $key"), body))
+        val json = JSONObject(post(context, "$base/chat", mapOf("Authorization" to "Bearer $key"), body))
         val text = json.optString("text").takeIf { it.isNotBlank() }
             ?: json.optJSONObject("message")?.optJSONArray("content")?.optJSONObject(0)?.optString("text")
         return require(!text.isNullOrBlank()) { responseMessage(json) }.let { text }
     }
 
-    private fun gemini(base: String, key: String, model: String, prompt: String): String {
+    private fun gemini(context: Context, base: String, key: String, model: String, prompt: String): String {
         val body = JSONObject().put("contents", JSONArray().put(
             JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))
         ))
-        val json = JSONObject(post("$base/models/$model:generateContent", mapOf("x-goog-api-key" to key), body))
+        val json = JSONObject(post(context, "$base/models/$model:generateContent", mapOf("x-goog-api-key" to key), body))
         val text = json.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")
             ?.optJSONArray("parts")?.optJSONObject(0)?.optString("text")
         return require(!text.isNullOrBlank()) { responseMessage(json) }.let { text }
     }
 
-    private fun post(url: String, headers: Map<String, String>, body: JSONObject): String {
+    private fun post(context: Context, url: String, headers: Map<String, String>, body: JSONObject): String {
         val c = URL(url).openConnection() as HttpURLConnection
         try {
             c.requestMethod = "POST"
