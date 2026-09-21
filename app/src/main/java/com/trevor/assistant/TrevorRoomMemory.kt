@@ -58,8 +58,11 @@ interface TrevorMemoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: TrevorTask)
 
-    @Query("SELECT * FROM trevor_tasks WHERE status = 'PENDING' ORDER BY triggerAt ASC")
+    @Query("SELECT * FROM trevor_tasks WHERE status IN ('PENDING','NOTIFIED') ORDER BY triggerAt ASC")
     suspend fun pendingTasks(): List<TrevorTask>
+
+    @Query("SELECT * FROM trevor_tasks WHERE id = :id LIMIT 1")
+    suspend fun task(id: String): TrevorTask?
 
     @Query("UPDATE trevor_tasks SET status = :status WHERE id = :id")
     suspend fun setTaskStatus(id: String, status: String)
