@@ -38,7 +38,7 @@ object TrevorCore {
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
         if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
 
-        val remind = Regex("^remind me in\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours)\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)
+        val remind = Regex("^remind me in\\s+(\\d+)\\s+(second|seconds|minute|minutes|hour|hours)\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)
         if (remind != null) {
             val amount = remind.groupValues[1].toLong()
             val unit = remind.groupValues[2].lowercase()
@@ -52,7 +52,7 @@ object TrevorCore {
             return finish(TrevorCoreResult.Answer("Scheduled locally: $title"))
         }
 
-        val remember = Regex("^remember\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
+        val remember = Regex("^remember\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
         if (remember != null) {
             TrevorPersistentMemory.saveLongTermMemory(context, remember)
             return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
@@ -152,7 +152,7 @@ object TrevorCore {
         // Prefer memories that overlap with the current request instead of dumping the whole
         // long-term memory store into every API call.
         val queryTerms = input.lowercase()
-            .split(Regex("\W+"))
+            .split(Regex("\\W+"))
             .filter { it.length > 2 }
             .distinct()
             .take(24)
@@ -235,7 +235,7 @@ object TrevorCore {
         val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
         val memory = kotlinx.coroutines.runBlocking {
             TrevorPersistentMemory.longTermMemory(context).map { it.content }.filter { saved ->
-                input.lowercase().split(Regex("\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
+                input.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
             }.take(6)
         }
         return listOf(
