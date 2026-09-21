@@ -1,8 +1,10 @@
 package com.trevor.assistant
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.os.Build
+import android.provider.Settings
 import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -106,7 +108,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             Box(Modifier.fillMaxSize()) {
                 TrevorApp(
-                    this,
+                    this@MainActivity,
                     attachment,
                     { picker.launch(arrayOf("*/*")) },
                     {
