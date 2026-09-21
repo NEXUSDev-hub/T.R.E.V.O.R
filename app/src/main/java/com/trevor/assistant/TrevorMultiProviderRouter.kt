@@ -39,6 +39,12 @@ object TrevorMultiProviderRouter {
         return last
     }
 
+    suspend fun testSingle(context: Context, provider: TrevorProviderId, prompt: String = "Reply with exactly: TREVOR connection test successful."): Result<String> {
+        val key = TrevorProviderKeyStore.load(context, provider) ?: return Result.failure(IllegalStateException("API key is not configured."))
+        val spec = TrevorProviderRegistry.spec(provider)
+        return TrevorHttpProvider(provider).ask(context, key, spec.models.first(), prompt)
+    }
+
     private fun isTemporary(error: Throwable?): Boolean {
         val m = error?.message.orEmpty().lowercase()
         return m.contains("429") || m.contains("rate") || m.contains("quota") ||
