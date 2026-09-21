@@ -23,15 +23,6 @@ import kotlinx.coroutines.launch
 
 private fun providerHelpUrl(provider: TrevorProviderId): String = when (provider) {
     TrevorProviderId.GEMINI -> "https://aistudio.google.com/app/apikey"
-    TrevorProviderId.OPENAI -> "https://platform.openai.com/api-keys"
-    TrevorProviderId.ANTHROPIC -> "https://console.anthropic.com/settings/keys"
-    TrevorProviderId.XAI -> "https://console.x.ai/"
-    TrevorProviderId.MISTRAL -> "https://console.mistral.ai/api-keys/"
-    TrevorProviderId.DEEPSEEK -> "https://platform.deepseek.com/api_keys"
-    TrevorProviderId.COHERE -> "https://dashboard.cohere.com/api-keys"
-    TrevorProviderId.GROQ -> "https://console.groq.com/keys"
-    TrevorProviderId.TOGETHER -> "https://api.together.ai/settings/api-keys"
-    TrevorProviderId.OPENROUTER -> "https://openrouter.ai/settings/keys"
 }
 
 @Composable
@@ -65,7 +56,7 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text("AI PROVIDER SETUP", color = Color(0xFFE8FAFF), fontSize = 22.sp)
         }
-        Text("TREVOR can use multiple providers. Configure one or several. Auto Switch keeps the conversation in TREVOR while changing providers when a configured provider reaches a detected limit or temporary failure.", color = Color(0xFF9FC4D0), fontSize = 12.sp)
+        Text("TREVOR currently uses its verified free-tier provider pool. Auto Switch remains ready for additional verified free providers when their current terms and age eligibility support this app.", color = Color(0xFF9FC4D0), fontSize = 12.sp)
 
         Text("1 • Choose a provider", color = Color(0xFF58D9FF), fontSize = 11.sp)
         TrevorProviderRegistry.providers.forEach { p ->
