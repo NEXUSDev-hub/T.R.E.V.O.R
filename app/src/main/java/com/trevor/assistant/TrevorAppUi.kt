@@ -606,11 +606,14 @@ private fun TrevorSettingsScreen(
         TrevorTopBar("SETTINGS", onBack)
         TrevorSettingsSection("AI + NETWORK", settings.accent.color) {
             TrevorSwitch("AI enabled", settings.aiEnabled) { onChange(settings.copy(aiEnabled = it)) }
-            TrevorSwitch("Gemini 3.8 Flash", settings.geminiEnabled) { onChange(settings.copy(geminiEnabled = it)) }
+            Text("Fixed AI engine: Google Gemini • Gemini 3.6 Flash", color = Color(0xFFDDF7FF), fontSize = 14.sp)
             TrevorSwitch("Offline first", settings.offlineFirst) { onChange(settings.copy(offlineFirst = it)) }
-            TrevorSwitch("Automatic provider failover", settings.autoProviderSwitch) { onChange(settings.copy(autoProviderSwitch = it)) }
+            TrevorSwitch("Usage intelligence", settings.usageIntelligenceEnabled) { onChange(settings.copy(usageIntelligenceEnabled = it)) }
             TrevorSwitch("Proactive notifications", settings.proactiveNotifications) { onChange(settings.copy(proactiveNotifications = it)) }
-            TrevorButton("AI Provider Keys", Icons.Filled.Key, onApiKey, settings.accent.color)
+            TrevorButton("Analyse phone usage", Icons.Filled.Analytics, {
+                runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+            }, settings.accent.color)
+            TrevorButton("Gemini API key", Icons.Filled.Key, onApiKey, settings.accent.color)
         }
         TrevorSettingsSection("INTERFACE", settings.accent.color) {
             TrevorSwitch("Orb enabled", settings.orbEnabled) { onChange(settings.copy(orbEnabled = it)) }
