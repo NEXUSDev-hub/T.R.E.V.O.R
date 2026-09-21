@@ -604,6 +604,8 @@ private fun TrevorSettingsScreen(
             TrevorSwitch("AI enabled", settings.aiEnabled) { onChange(settings.copy(aiEnabled = it)) }
             TrevorSwitch("Gemini 3.8 Flash", settings.geminiEnabled) { onChange(settings.copy(geminiEnabled = it)) }
             TrevorSwitch("Offline first", settings.offlineFirst) { onChange(settings.copy(offlineFirst = it)) }
+            TrevorSwitch("Automatic provider failover", settings.autoProviderSwitch) { onChange(settings.copy(autoProviderSwitch = it)) }
+            TrevorSwitch("Proactive notifications", settings.proactiveNotifications) { onChange(settings.copy(proactiveNotifications = it)) }
             TrevorButton("Gemini API Key", Icons.Filled.Key, onApiKey, settings.accent.color)
         }
         TrevorSettingsSection("INTERFACE", settings.accent.color) {
