@@ -14,9 +14,12 @@ object TrevorMultiProviderRouter {
     private const val COOLDOWN_MS = 60_000L
 
     suspend fun ask(context: Context, prompt: String, preferred: TrevorProviderId? = null): Result<String> {
+        val autoSwitch = TrevorSettingsStore.load(context).autoProviderSwitch
         val order = buildList {
             preferred?.let(::add)
-            TrevorProviderRegistry.providers.map { it.id }.filter { it != preferred }.forEach(::add)
+            if (autoSwitch) {
+                TrevorProviderRegistry.providers.map { it.id }.filter { it != preferred }.forEach(::add)
+            }
         }
         var last: Result<String> = Result.failure(IllegalStateException("No configured AI provider is available."))
         for (provider in order) {
