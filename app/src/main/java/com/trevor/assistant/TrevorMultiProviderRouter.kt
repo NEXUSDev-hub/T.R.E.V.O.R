@@ -21,15 +21,18 @@ object TrevorMultiProviderRouter {
         var last: Result<String> = Result.failure(IllegalStateException("No configured AI provider is available."))
         for (provider in order) {
             if (System.currentTimeMillis() < (cooldownUntil[provider] ?: 0L)) continue
+            if (!TrevorProviderLimitTracker.allow(context, provider)) continue
             val key = TrevorProviderKeyStore.load(context, provider) ?: continue
             val spec = TrevorProviderRegistry.spec(provider)
             for (model in spec.models) {
+                TrevorProviderLimitTracker.recordRequest(context, provider)
                 val result = TrevorHttpProvider(provider).ask(context, key, model, prompt)
                 if (result.isSuccess) {
                     cooldownUntil.remove(provider)
                     return result
                 }
                 last = result
+                TrevorProviderLimitTracker.recordFailure(context, provider, result.exceptionOrNull())
                 if (isTemporary(result.exceptionOrNull())) {
                     cooldownUntil[provider] = System.currentTimeMillis() + COOLDOWN_MS
                     break
@@ -118,7 +121,7 @@ private class TrevorHttpProvider(private val provider: TrevorProviderId) {
             val code = c.responseCode
             val stream = if (code in 200..299) c.inputStream else c.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
-            if (code !in 200..299) error("HTTP $code: $text")
+            if (code !in 200..299) error("HTTP $code retryAfter=${c.getHeaderField("Retry-After") ?: ""}: $text")
             return text
         } finally {
             c.disconnect()
