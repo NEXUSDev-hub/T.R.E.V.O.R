@@ -20,6 +20,10 @@ enum class TrevorPersonality(val label: String, val description: String) {
 data class TrevorSettings(
     val aiEnabled: Boolean = true,
     val geminiEnabled: Boolean = true,
+    val autoProviderSwitch: Boolean = true,
+    val preferredProvider: TrevorProviderId = TrevorProviderId.GEMINI,
+    val proactiveNotifications: Boolean = true,
+    val quietHours: Boolean = false,
     val orbEnabled: Boolean = true,
     val animations: Boolean = true,
     val conciseResponses: Boolean = true,
@@ -45,6 +49,10 @@ object TrevorSettingsStore {
         return TrevorSettings(
             aiEnabled = p.getBoolean("aiEnabled", true),
             geminiEnabled = p.getBoolean("geminiEnabled", true),
+            autoProviderSwitch = p.getBoolean("autoProviderSwitch", true),
+            preferredProvider = runCatching { TrevorProviderId.valueOf(p.getString("preferredProvider", TrevorProviderId.GEMINI.name) ?: TrevorProviderId.GEMINI.name) }.getOrDefault(TrevorProviderId.GEMINI),
+            proactiveNotifications = p.getBoolean("proactiveNotifications", true),
+            quietHours = p.getBoolean("quietHours", false),
             orbEnabled = p.getBoolean("orbEnabled", true),
             animations = p.getBoolean("animations", true),
             conciseResponses = p.getBoolean("conciseResponses", true),
@@ -69,6 +77,10 @@ object TrevorSettingsStore {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean("aiEnabled", s.aiEnabled)
             .putBoolean("geminiEnabled", s.geminiEnabled)
+            .putBoolean("autoProviderSwitch", s.autoProviderSwitch)
+            .putString("preferredProvider", s.preferredProvider.name)
+            .putBoolean("proactiveNotifications", s.proactiveNotifications)
+            .putBoolean("quietHours", s.quietHours)
             .putBoolean("orbEnabled", s.orbEnabled)
             .putBoolean("animations", s.animations)
             .putBoolean("conciseResponses", s.conciseResponses)
