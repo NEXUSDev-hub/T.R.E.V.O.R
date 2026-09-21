@@ -7,6 +7,8 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.content.pm.ServiceInfo
+import androidx.core.app.ServiceCompat
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 
@@ -37,8 +39,23 @@ class TrevorProactiveService : Service() {
     }
 
     override fun onDestroy() {
+        TrevorFloatingOverlay.hide()
+        TrevorLiveSession.disconnect()
         scope.cancel()
         super.onDestroy()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_SHOW_OVERLAY -> TrevorFloatingOverlay.show(applicationContext)
+            ACTION_HIDE_OVERLAY -> TrevorFloatingOverlay.hide()
+            ACTION_LIVE_START -> promoteLive()
+        }
+        return START_STICKY
+    }
+
+    private fun promoteLive() {
+        if (Build.VERSION.SDK_INT >= 29) ServiceCompat.startForeground(this, NOTIFICATION_ID, baseNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -73,6 +90,9 @@ class TrevorProactiveService : Service() {
     }
 
     companion object {
+        const val ACTION_SHOW_OVERLAY = "com.trevor.assistant.SHOW_OVERLAY"
+        const val ACTION_HIDE_OVERLAY = "com.trevor.assistant.HIDE_OVERLAY"
+        const val ACTION_LIVE_START = "com.trevor.assistant.LIVE_START"
         private const val CHANNEL_ID = "trevor_proactive"
         private const val NOTIFICATION_ID = 731
     }
