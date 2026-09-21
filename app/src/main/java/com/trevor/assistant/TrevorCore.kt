@@ -121,11 +121,36 @@ object TrevorCore {
             TrevorPersistentMemory.recentConversation(context, it, 12)
                 .joinToString("\n") { m -> m.role + ": " + m.content }
         }.orEmpty()
+        val projectContext = if (mode == TrevorMode.PROJECT) {
+            val projectId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE).getString("project_id", "default") ?: "default"
+            TrevorPersistentMemory.projectMemory(context, projectId).takeLast(20)
+                .joinToString("\n") { it.content }
+        } else ""
         val enriched = buildString {
             append(input)
             if (history.isNotBlank()) {
                 append("\n\nRelevant recent TREVOR conversation:\n")
                 append(history)
+            }
+            if (projectContext.isNotBlank()) {
+                append("\n\nPersistent project context:\n")
+                append(projectContext)
+            }
+        }
+        if (mode == TrevorMode.RESEARCH) {
+            val geminiKey = SecureApiKeyStore.load(context)
+            if (!geminiKey.isNullOrBlank()) {
+                val grounded = GeminiAiProvider.ask(
+                    context = context.applicationContext,
+                    apiKey = geminiKey,
+                    prompt = enriched,
+                    attachment = attachment,
+                    useGoogleSearch = true
+                )
+                if (grounded.isSuccess) {
+                    val verified = TrevorResearchVerifier.appendVerification(grounded.getOrThrow())
+                    return TrevorCoreResult.Answer(verified)
+                }
             }
         }
         val result = TrevorMultiProviderRouter.ask(
@@ -134,8 +159,8 @@ object TrevorCore {
             preferred = settings.preferredProvider
         )
         return result.fold(
-            onSuccess = { TrevorCoreResult.Answer(it) },
-            onFailure = { error -> TrevorCoreResult.Error("AI provider request failed:\n" + (error.message ?: "All configured providers failed or no API key is configured.")) }
+            onSuccess = { TrevorCoreResult.Answer(if (mode == TrevorMode.RESEARCH) TrevorResearchVerifier.appendVerification(it) else it) },
+            onFailure = { error -> TrevorCoreResult.Error(TrevorErrorEngine.userMessage(error.message ?: "All configured providers failed or no API key is configured.")) }
         )
     }
 
