@@ -35,7 +35,7 @@ object TrevorCore {
         }
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
 
-        val localAnswer = TrevorLocalIntelligence.answer(context, clean)
+        val localAnswer = TrevorLocalIntelligence.answer(context, clean)\n        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled && (clean.contains("usage", true) || clean.contains("phone use", true) || clean.contains("usage pattern", true))) {\n            return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))\n        }\n        val automation = TrevorAutomationEngine.plan(clean)\n        if (automation != null) return finish(TrevorCoreResult.Answer(TrevorAutomationEngine.execute(context, automation)))
         if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
 
         val remind = Regex("""^remind me in\\s+(\\d+)\\s+(second|seconds|minute|minutes|hour|hours)\\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)
