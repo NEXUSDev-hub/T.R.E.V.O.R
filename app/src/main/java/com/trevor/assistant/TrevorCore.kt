@@ -50,6 +50,10 @@ object TrevorCore {
         }
 
         val resolvedMode = TrevorModeRouter.route(mode, clean)
+        if (resolvedMode == TrevorMode.PROJECT) {
+            val projectId = prefs.getString("project_id", "default") ?: "default"
+            TrevorPersistentMemory.saveProjectMemory(context, projectId, clean)
+        }
         TrevorStateStore.update {
             it.copy(
                 currentMode = resolvedMode,
