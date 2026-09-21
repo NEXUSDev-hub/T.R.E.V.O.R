@@ -123,8 +123,6 @@ private class TrevorHttpProvider(private val provider: TrevorProviderId) {
             runCatching {
                 val spec = TrevorProviderRegistry.spec(provider)
                 when (spec.protocol) {
-                    TrevorProviderProtocol.OPENAI_COMPATIBLE ->
-                        openAi(context, spec.endpoint, key, model.id, prompt)
                     TrevorProviderProtocol.GEMINI ->
                         gemini(context, spec.endpoint, key, model.id, prompt)
                 }
@@ -133,17 +131,6 @@ private class TrevorHttpProvider(private val provider: TrevorProviderId) {
                 { Result.failure(RuntimeException(it.message ?: "Provider request failed.", it)) }
             )
         }
-
-    private fun openAi(context: Context, base: String, key: String, model: String, prompt: String): String {
-        val body = JSONObject()
-            .put("model", model)
-            .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
-        val response = post(context, "$base/chat/completions", mapOf("Authorization" to "Bearer $key"), body)
-        val json = JSONObject(response)
-        val text = json.optJSONArray("choices")?.optJSONObject(0)
-            ?.optJSONObject("message")?.optString("content")
-        return require(!text.isNullOrBlank()) { responseMessage(json) }.let { text }
-    }
 
     private fun gemini(context: Context, base: String, key: String, model: String, prompt: String): String {
         val body = JSONObject().put(
