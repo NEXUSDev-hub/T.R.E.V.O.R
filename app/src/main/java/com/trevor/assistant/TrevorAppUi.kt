@@ -635,23 +635,54 @@ private fun TrevorApiKeyScreen(context: Context, onBack: () -> Unit) {
 
 @Composable
 private fun TrevorDeveloperScreen(context: Context, onBack: () -> Unit) {
+    var unlocked by remember { mutableStateOf(!TrevorDeveloperAuth.isConfigured(context)) }
+    var pin by remember { mutableStateOf("") }
+    var newPin by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
     val state by TrevorStateStore.state.collectAsState()
     TrevorIceScreen {
         TrevorTopBar("DIAGNOSTICS", onBack)
-        TrevorSettingsSection("TREVOR FOUNDATION", Color(0xFF58D9FF)) {
-            Text("Version: " + TrevorVersion.label(context))
-            Text("Identity: " + TrevorIdentity.FULL_NAME)
-            Text("Creators: " + TrevorIdentity.CREATORS)
-            Text("Gemini model: " + GeminiAiProvider.MODEL)
-            Text("Orb: OpenGL ES 2.0 crystal renderer")
-            Text("Orb state: " + state.orbState)
-            Text("Request: " + state.requestState)
-            Text("AI: " + state.aiState)
-            Text("File: " + state.fileState)
-            Text("Mode: " + state.currentMode)
-            state.lastError?.let { Text("Last error: $it", color = Color(0xFFFF7180)) }
-            Text("File pipeline: SAF → validation → extraction/media attachment → Core")
-            Text("Research: Google Search grounding enabled in Research mode")
+        if (!unlocked) {
+            TrevorSettingsSection("DEVELOPER LOCK", Color(0xFFFFC66D)) {
+                Text("Developer diagnostics are protected by a local PIN.", color = Color(0xFFBFDCE5))
+                OutlinedTextField(value = pin, onValueChange = { pin = it }, label = { Text("PIN") }, visualTransformation = PasswordVisualTransformation())
+                TrevorButton("Unlock", Icons.Filled.LockOpen, {
+                    if (TrevorDeveloperAuth.verify(context, pin)) { unlocked = true; pin = "" }
+                    else message = "Incorrect PIN."
+                }, Color(0xFFFFC66D))
+                if (message.isNotBlank()) Text(message, color = Color(0xFFFF7180))
+            }
+        } else {
+            TrevorSettingsSection("TREVOR FOUNDATION", Color(0xFF58D9FF)) {
+                Text("Version: " + TrevorVersion.label(context))
+                Text("Identity: " + TrevorIdentity.FULL_NAME)
+                Text("Creators: " + TrevorIdentity.CREATORS)
+                Text("Gemini model: " + GeminiAiProvider.MODEL)
+                Text("Orb: OpenGL ES 2.0 crystal renderer")
+                Text("Orb state: " + state.orbState)
+                Text("Request: " + state.requestState)
+                Text("AI: " + state.aiState)
+                Text("File: " + state.fileState)
+                Text("Mode: " + state.currentMode)
+                Text("Research: Google Search grounding + URL reachability verification")
+                Text("Document pipeline: text + PDF OCR + DOCX XML + legacy DOC recovery + image OCR")
+                Spacer(Modifier.height(6.dp))
+                TrevorButton("Show diagnostics", Icons.Filled.Info, {
+                    TrevorStateStore.update { it.copy(lastOutput = TrevorDiagnostics.snapshot(context)) }
+                }, Color(0xFF58D9FF))
+                TrevorButton("Share diagnostics", Icons.Filled.Share, {
+                    TrevorAndroidBridge.shareText(context, TrevorDiagnostics.snapshot(context))
+                }, Color(0xFF58D9FF))
+                Spacer(Modifier.height(6.dp))
+                Text("Set / replace developer PIN", color = Color(0xFF58D9FF), fontWeight = FontWeight.Bold)
+                OutlinedTextField(value = newPin, onValueChange = { newPin = it }, label = { Text("New PIN (4+ digits)") }, visualTransformation = PasswordVisualTransformation())
+                TrevorButton("Save PIN", Icons.Filled.Password, {
+                    message = if (TrevorDeveloperAuth.setPin(context, newPin)) "Developer PIN saved." else "PIN must contain at least 4 characters."
+                    newPin = ""
+                }, Color(0xFF58D9FF))
+                TrevorButton("Lock", Icons.Filled.Lock, { unlocked = false }, Color(0xFFFFC66D))
+                if (message.isNotBlank()) Text(message, color = Color(0xFFBFDCE5))
+            }
         }
     }
 }
