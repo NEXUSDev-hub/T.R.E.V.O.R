@@ -163,20 +163,59 @@ object TrevorResearchVerifier {
 object TrevorDeveloperAuth {
     private const val PREFS = "trevor_developer"
     private const val PIN_HASH = "pin_hash"
-    private fun digest(pin: String): String = java.security.MessageDigest.getInstance("SHA-256")
-        .digest(pin.trim().toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+    private const val PIN_SALT = "pin_salt"
+    private const val PIN_ITERATIONS = 120_000
+
+    private fun legacyDigest(pin: String): ByteArray =
+        java.security.MessageDigest.getInstance("SHA-256").digest(pin.trim().toByteArray(Charsets.UTF_8))
+
+    private fun derive(pin: String, salt: ByteArray): ByteArray =
+        javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            .generateSecret(javax.crypto.spec.PBEKeySpec(pin.trim().toCharArray(), salt, PIN_ITERATIONS, 256))
+            .encoded
+
+    private fun constantTimeEquals(a: ByteArray, b: ByteArray): Boolean =
+        java.security.MessageDigest.isEqual(a, b)
+
     fun isConfigured(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(PIN_HASH)
+
     fun setPin(context: Context, pin: String): Boolean {
-        if (pin.trim().length < 4) return false
+        val clean = pin.trim()
+        if (clean.length < 4) return false
+        val salt = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+        val hash = derive(clean, salt)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(PIN_HASH, digest(pin)).apply()
+            .putString(PIN_HASH, android.util.Base64.encodeToString(hash, android.util.Base64.NO_WRAP))
+            .putString(PIN_SALT, android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP))
+            .apply()
         return true
     }
-    fun verify(context: Context, pin: String): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(PIN_HASH, null) == digest(pin)
+
+    fun verify(context: Context, pin: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val stored = prefs.getString(PIN_HASH, null) ?: return false
+        val saltEncoded = prefs.getString(PIN_SALT, null)
+        if (saltEncoded == null) {
+            // Migrate an older SHA-256 PIN after a successful verification.
+            val ok = constantTimeEquals(legacyDigest(pin), runCatching {
+                android.util.Base64.decode(stored, android.util.Base64.NO_WRAP)
+            }.getOrElse { hexToBytes(stored) })
+            if (ok) setPin(context, pin)
+            return ok
+        }
+        val expected = runCatching { android.util.Base64.decode(stored, android.util.Base64.NO_WRAP) }.getOrNull() ?: return false
+        val salt = runCatching { android.util.Base64.decode(saltEncoded, android.util.Base64.NO_WRAP) }.getOrNull() ?: return false
+        return constantTimeEquals(derive(pin, salt), expected)
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        if (hex.length % 2 != 0) return ByteArray(0)
+        return ByteArray(hex.length / 2) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+    }
+
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(PIN_HASH).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(PIN_HASH).remove(PIN_SALT).apply()
     }
 }
 
