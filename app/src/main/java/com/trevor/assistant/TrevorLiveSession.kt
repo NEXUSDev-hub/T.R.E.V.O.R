@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 data class TrevorLiveState(val connected:Boolean=false,val listening:Boolean=false,val speaking:Boolean=false,val transcript:String="",val response:String="",val error:String?=null)
 
 object TrevorLiveSession {
-    private const val MODEL="gemini-3.1-flash-live-preview"
+    private const val MODEL="gemini-3.8-live"
     private const val URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
     private val lock=Any()
