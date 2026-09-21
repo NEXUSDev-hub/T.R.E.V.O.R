@@ -23,6 +23,16 @@ data class TrevorProjectMemory(
     val timestamp: Long
 )
 
+@Entity(tableName = "trevor_tasks")
+data class TrevorTask(
+    @PrimaryKey val id: String,
+    val title: String,
+    val action: String,
+    val triggerAt: Long,
+    val status: String = "PENDING",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "long_term_memory")
 data class TrevorLongTermMemory(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -45,6 +55,15 @@ interface TrevorMemoryDao {
     suspend fun project(projectId: String): List<TrevorProjectMemory>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTask(task: TrevorTask)
+
+    @Query("SELECT * FROM trevor_tasks WHERE status = 'PENDING' ORDER BY triggerAt ASC")
+    suspend fun pendingTasks(): List<TrevorTask>
+
+    @Query("UPDATE trevor_tasks SET status = :status WHERE id = :id")
+    suspend fun setTaskStatus(id: String, status: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemory(memory: TrevorLongTermMemory)
 
     @Query("SELECT * FROM long_term_memory ORDER BY timestamp DESC LIMIT 100")
@@ -52,21 +71,26 @@ interface TrevorMemoryDao {
 }
 
 @Database(
-    entities = [TrevorConversationMessage::class, TrevorProjectMemory::class, TrevorLongTermMemory::class],
-    version = 1,
+    entities = [TrevorConversationMessage::class, TrevorProjectMemory::class, TrevorTask::class, TrevorLongTermMemory::class],
+    version = 2,
     exportSchema = false
 )
 abstract class TrevorDatabase : RoomDatabase() {
     abstract fun memoryDao(): TrevorMemoryDao
 
     companion object {
+        private val TREVOR_MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS trevor_tasks (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, action TEXT NOT NULL, triggerAt INTEGER NOT NULL, status TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+            }
+        }
         @Volatile private var instance: TrevorDatabase? = null
         fun get(context: Context): TrevorDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 TrevorDatabase::class.java,
                 "trevor_memory.db"
-            ).fallbackToDestructiveMigration().build().also { instance = it }
+            ).addMigrations(TREVOR_MIGRATION_1_2).build().also { instance = it }
         }
     }
 }
@@ -91,6 +115,15 @@ object TrevorPersistentMemory {
 
     suspend fun projectMemory(context: Context, projectId: String): List<TrevorProjectMemory> =
         withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().project(projectId) }
+
+    suspend fun saveTask(context: Context, task: TrevorTask) =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().insertTask(task) }
+
+    suspend fun pendingTasks(context: Context): List<TrevorTask> =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().pendingTasks() }
+
+    suspend fun setTaskStatus(context: Context, id: String, status: String) =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().setTaskStatus(id, status) }
 
     suspend fun saveLongTermMemory(context: Context, content: String) =
         withContext(Dispatchers.IO) {
