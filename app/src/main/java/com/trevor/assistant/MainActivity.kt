@@ -52,17 +52,35 @@ import kotlin.math.sin
 class MainActivity : ComponentActivity() {
     private var attachment by mutableStateOf<TrevorAttachment?>(null)
 
-    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@registerForActivityResult
+    private val picker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@registerForActivityResult
         lifecycleScope.launch {
-            TrevorFileService.inspect(this@MainActivity, uri)
-                .onSuccess { attachment = it }
-                .onFailure { error ->
-                    attachment = null
-                    TrevorStateStore.update {
-                        it.copy(fileState = TrevorFileState.ERROR, orbState = TrevorOrbState.ERROR, lastError = error.message)
-                    }
+            val results = TrevorMultiFileService.inspectAll(this@MainActivity, uris)
+            val good = results.mapNotNull { it.getOrNull() }
+            val failed = results.mapNotNull { it.exceptionOrNull()?.message }
+            if (good.isEmpty()) {
+                attachment = null
+                TrevorStateStore.update {
+                    it.copy(fileState = TrevorFileState.ERROR, orbState = TrevorOrbState.ERROR, lastError = failed.firstOrNull() ?: "No readable files selected.")
                 }
+            } else if (good.size == 1) {
+                attachment = good.first()
+            } else {
+                val combined = good.joinToString("\n\n") { file ->
+                    "===== " + file.name + " =====\n" + (file.extractedText ?: "[No extracted text; original media is not merged into this text context.]")
+                }
+                attachment = TrevorAttachment(
+                    uri = good.first().uri,
+                    name = good.size.toString() + " files",
+                    mimeType = "text/plain",
+                    sizeBytes = good.sumOf { it.sizeBytes ?: 0L },
+                    extractedText = combined.take(120000),
+                    extractable = true
+                )
+            }
+            if (failed.isNotEmpty()) {
+                TrevorStateStore.update { it.copy(lastError = failed.joinToString("; ")) }
+            }
         }
     }
 
