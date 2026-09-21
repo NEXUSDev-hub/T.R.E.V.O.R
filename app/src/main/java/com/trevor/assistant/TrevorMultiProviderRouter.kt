@@ -14,11 +14,14 @@ object TrevorMultiProviderRouter {
     private const val COOLDOWN_MS = 60_000L
 
     suspend fun ask(context: Context, prompt: String, preferred: TrevorProviderId? = null): Result<String> {
-        val autoSwitch = TrevorSettingsStore.load(context).autoProviderSwitch
+        val settings = TrevorSettingsStore.load(context)
+        val autoSwitch = settings.autoProviderSwitch
+        val allowed = TrevorProviderRegistry.providers.map { it.id }
+            .filter { it != TrevorProviderId.GEMINI || settings.geminiEnabled }
         val order = buildList {
-            preferred?.let(::add)
+            preferred?.takeIf { it in allowed }?.let(::add)
             if (autoSwitch) {
-                TrevorProviderRegistry.providers.map { it.id }.filter { it != preferred }.forEach(::add)
+                allowed.filter { it != preferred }.forEach(::add)
             }
         }
         var last: Result<String> = Result.failure(IllegalStateException("No configured AI provider is available."))
@@ -54,7 +57,7 @@ object TrevorMultiProviderRouter {
     private fun isTemporary(error: Throwable?): Boolean {
         val m = error?.message.orEmpty().lowercase()
         return m.contains("429") || m.contains("rate") || m.contains("quota") ||
-            m.contains("timeout") || m.contains("temporar") || m.contains("502") || m.contains("503")
+            m.contains("timeout") || m.contains("temporar") || m.contains("502") || m.contains("503") || m.contains("504")
     }
 }
 
