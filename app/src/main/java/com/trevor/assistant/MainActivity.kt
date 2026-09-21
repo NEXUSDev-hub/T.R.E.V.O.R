@@ -104,15 +104,18 @@ class MainActivity : ComponentActivity() {
             requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 730)
         }
         setContent {
-            TrevorApp(
-                this,
-                attachment,
-                { picker.launch(arrayOf("*/*")) },
-                {
-                    attachment = null
-                    TrevorStateStore.update { it.copy(fileState = TrevorFileState.NONE, orbState = TrevorOrbState.IDLE, lastError = null) }
-                }
-            )
+            Box(Modifier.fillMaxSize()) {
+                TrevorApp(
+                    this,
+                    attachment,
+                    { picker.launch(arrayOf("*/*")) },
+                    {
+                        attachment = null
+                        TrevorStateStore.update { it.copy(fileState = TrevorFileState.NONE, orbState = TrevorOrbState.IDLE, lastError = null) }
+                    }
+                )
+                TrevorFeatureSurface(this@MainActivity)
+            }
         }
     }
 }
