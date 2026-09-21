@@ -139,6 +139,12 @@ private class TrevorHttpProvider(private val provider: TrevorProviderId) {
             val stream = if (code in 200..299) c.inputStream else c.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
             if (code !in 200..299) error("HTTP $code retryAfter=${c.getHeaderField("Retry-After") ?: ""}: $text")
+            val remainingRequests = c.getHeaderField("x-ratelimit-remaining-requests")?.toLongOrNull()
+                ?: c.getHeaderField("ratelimit-remaining")?.toLongOrNull()
+            val remainingTokens = c.getHeaderField("x-ratelimit-remaining-tokens")?.toLongOrNull()
+            val resetSeconds = c.getHeaderField("x-ratelimit-reset-requests")?.toLongOrNull()
+            val resetAt = resetSeconds?.let { System.currentTimeMillis() + it * 1000L }
+            TrevorProviderLimitTracker.recordAuthoritativeHeaders(context, provider, remainingRequests, remainingTokens, resetAt)
             return text
         } finally {
             c.disconnect()
