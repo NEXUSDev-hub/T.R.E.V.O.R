@@ -90,6 +90,7 @@ object TrevorFileService {
 
     private fun isSupported(name: String, mime: String): Boolean =
         isTextLike(name, mime) ||
+            name.endsWith(".doc", true) || name.endsWith(".docx", true) ||
             mime in setOf(
                 "application/pdf","application/rtf",
                 "image/jpeg","image/png","image/webp","image/bmp",
