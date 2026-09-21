@@ -148,16 +148,15 @@ data class TrevorVerifiedSource(val url: String, val reachable: Boolean, val sta
 object TrevorResearchVerifier {
     private val urlRegex = Regex("https?://[^\\s)\\]}>]+")
     suspend fun appendVerification(text: String): String = withContext(Dispatchers.IO) {
-        val sources = urlRegex.findAll(text)
-            .map { it.value.trimEnd('.', ',', ';') }
-            .distinct().take(8).map { verifyOne(it) }.toList()
+        val sources = urlRegex.findAll(text).map { it.value.trimEnd('.', ',', ';') }.distinct().take(8).map { verifyOne(it) }.toList()
         if (sources.isEmpty()) text else text + buildString {
-            append("\n\nSource verification (reachability only):\n")
-            sources.forEach {
-                append(if (it.reachable) "✓ " else "✗ ")
-                append(it.url).append(" — ").append(it.note).append('\n')
+            append("\n\nRESEARCH SOURCES — reachability checked\n")
+            sources.forEachIndexed { index, source ->
+                append(index + 1).append(". ")
+                append(if (source.reachable) "[REACHABLE] " else "[UNREACHABLE] ")
+                append(source.url).append(" — ").append(source.note).append('\n')
             }
-            append("Reachability does not prove a source's claims are correct.")
+            append("\nReachability is a network check only; it does not independently validate a source's claims.")
         }
     }
 
@@ -180,8 +179,8 @@ object TrevorResearchVerifier {
             get.inputStream?.close()
             get.disconnect()
         }
-        TrevorVerifiedSource(url, code in 200..399, code, if (code in 200..399) "reachable" else "HTTP " + code)
-    }.getOrElse { TrevorVerifiedSource(url, false, null, "unreachable") }
+        TrevorVerifiedSource(url, code in 200..399, code, "HTTP $code")
+    }.getOrElse { TrevorVerifiedSource(url, false, null, "network check failed") }
 }
 
 object TrevorDeveloperAuth {
