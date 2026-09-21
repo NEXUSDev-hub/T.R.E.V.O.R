@@ -25,6 +25,23 @@ object TrevorCore {
         }
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
 
+        val localAnswer = TrevorLocalIntelligence.answer(context, clean)
+        if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
+
+        val remind = Regex("^remind me in\\s+(\\d+)\\s+(second|seconds|minute|minutes|hour|hours)\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)
+        if (remind != null) {
+            val amount = remind.groupValues[1].toLong()
+            val unit = remind.groupValues[2].lowercase()
+            val title = remind.groupValues[3].trim()
+            val millis = when {
+                unit.startsWith("second") -> amount * 1000L
+                unit.startsWith("minute") -> amount * 60_000L
+                else -> amount * 3_600_000L
+            }
+            TrevorTaskEngine.schedule(context, title, title, System.currentTimeMillis() + millis)
+            return finish(TrevorCoreResult.Answer("Scheduled locally: $title"))
+        }
+
         val remember = Regex("^remember\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
         if (remember != null) {
             TrevorMemoryStore.add(context, remember)
