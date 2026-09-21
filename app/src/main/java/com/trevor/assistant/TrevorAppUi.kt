@@ -192,7 +192,7 @@ private fun TrevorDashboard(
                     }
                     Text(TrevorIdentity.FULL_NAME + " • Made by " + TrevorIdentity.CREATORS, color = Color(0xFF9FC4D0), fontSize = 10.sp)
                     Text("${TrevorVersion.label(context)}  •  ${state.orbState.name}", color = visual.accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Memory $memoryCount  •  Tasks $taskCount  •  Auto-routing ${if (settings.autoProviderSwitch) "ON" else "OFF"}", color = Color(0xFF7FA9B6), fontSize = 9.sp)
+                    Text("Memory $memoryCount  •  Tasks $taskCount  •  Gemini 3.6 Flash  •  Local-first", color = Color(0xFF7FA9B6), fontSize = 9.sp)
                 }
                 IconButton(onClick = onSettings) {
                     Icon(Icons.Filled.Settings, "Settings", tint = Color(0xFFBCEAF5))
@@ -458,7 +458,7 @@ private fun AnalyseWorkspace(attachment: TrevorAttachment?, accent: Color, onToo
 
 @Composable
 private fun ResearchWorkspace(accent: Color, onTool: (String) -> Unit) {
-    WorkspaceHeader("LIVE RESEARCH", "Gemini 3.8 Flash uses Google Search grounding in Research mode.", accent)
+    WorkspaceHeader("LIVE RESEARCH", "Gemini 3.6 Flash uses Google Search grounding in Research mode.", accent)
     ToolGrid(listOf(
         "Latest" to "Find the latest verified information about:",
         "Compare sources" to "Research and compare reliable sources about:",
@@ -626,7 +626,7 @@ private fun TrevorSettingsScreen(
                 TrevorSwitch("Rubbish mode", settings.rubbishMode) { onChange(settings.copy(rubbishMode = it)) }
                 Text("Rubbish mode runs every ${settings.rubbishIntervalSeconds}s while proactive mode is active.", color = Color(0xFF83AAB7), fontSize = 10.sp)
             }
-            Text("Professional stays quiet unless useful. Chaotic and Deadpool can initiate assistant messages. Background behaviour is optional and uses an Android foreground service.", color = Color(0xFF83AAB7), fontSize = 10.sp)
+            Text("Professional stays quiet unless useful. Chaotic and Deadpool can initiate assistant messages. Background work uses Android-supported scheduling; foreground services are reserved for capabilities that require them.", color = Color(0xFF83AAB7), fontSize = 10.sp)
         }
         TrevorSettingsSection("MEMORY + TASKS", settings.accent.color) {
             TrevorButton("Memory and task manager", Icons.Filled.History, onMemory, settings.accent.color)
