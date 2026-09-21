@@ -8,7 +8,10 @@ import java.util.concurrent.ConcurrentHashMap
 data class TrevorProviderUsage(
     val minuteRequests: Int,
     val dayRequests: Int,
-    val cooldownUntil: Long
+    val cooldownUntil: Long,
+    val remainingRequests: Long? = null,
+    val remainingTokens: Long? = null,
+    val quotaResetAt: Long? = null
 )
 
 object TrevorProviderLimitTracker {
@@ -46,6 +49,14 @@ object TrevorProviderLimitTracker {
             .edit().putLong(provider.name + "_cooldown", System.currentTimeMillis() + delay).apply()
     }
 
+    fun recordAuthoritativeHeaders(context: Context, provider: TrevorProviderId, remainingRequests: Long?, remainingTokens: Long?, resetAt: Long?) {
+        val edit = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        if (remainingRequests != null) edit.putLong(provider.name + "_remaining_requests", remainingRequests)
+        if (remainingTokens != null) edit.putLong(provider.name + "_remaining_tokens", remainingTokens)
+        if (resetAt != null) edit.putLong(provider.name + "_quota_reset", resetAt)
+        edit.apply()
+    }
+
     fun usage(context: Context, provider: TrevorProviderId): TrevorProviderUsage {
         val now = System.currentTimeMillis()
         val list = memory[provider].orEmpty()
@@ -54,7 +65,10 @@ object TrevorProviderLimitTracker {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val storedDay = prefs.getLong(provider.name + "_day", dayKey)
         val day = if (storedDay == dayKey) prefs.getInt(provider.name + "_count", 0) else 0
-        return TrevorProviderUsage(minute, day, cooldown(context, provider))
+        val remainingRequests = prefs.getLong(provider.name + "_remaining_requests", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }
+        val remainingTokens = prefs.getLong(provider.name + "_remaining_tokens", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }
+        val resetAt = prefs.getLong(provider.name + "_quota_reset", Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }
+        return TrevorProviderUsage(minute, day, cooldown(context, provider), remainingRequests, remainingTokens, resetAt)
     }
 
     private fun cooldown(context: Context, provider: TrevorProviderId): Long =
