@@ -44,6 +44,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlin.math.cos
@@ -289,7 +291,7 @@ private fun TrevorOrbStage(
         var orbView by remember { mutableStateOf<TrevorOrbView?>(null) }
         if (settings.orbEnabled) {
             AndroidView(
-                modifier = Modifier.size((minDimension * 0.42f).coerceIn(170f, 235f).dp).align(Alignment.Center),
+                modifier = Modifier.size((minDimension * 0.42f).coerceIn(170f, 235f).dp).align(Alignment.Center).semantics { contentDescription = "TREVOR interactive 3D orb. Current state: " + orbState.name },
                 factory = { ctx ->
                     TrevorOrbView(ctx).apply {
                         orbView = this
