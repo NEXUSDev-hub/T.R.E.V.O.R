@@ -312,6 +312,10 @@ object TrevorDiagnostics {
             appendLine("Device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)
             appendLine("AI: " + s.aiEnabled + "; offline-first: " + s.offlineFirst + "; auto-routing: " + s.autoProviderSwitch)
             appendLine("Preferred provider: " + s.preferredProvider + "; proactive: " + s.proactiveEnabled)
+            val usage = TrevorProviderLimitTracker.usage(context, s.preferredProvider)
+            appendLine("Provider usage: minute=" + usage.minuteRequests + ", day=" + usage.dayRequests +
+                ", remainingRequests=" + (usage.remainingRequests?.toString() ?: "not reported") +
+                ", remainingTokens=" + (usage.remainingTokens?.toString() ?: "not reported"))
             appendLine("Mode: " + state.currentMode + "; request: " + state.requestState + "; AI: " + state.aiState)
             appendLine("File: " + state.fileState + "; orb: " + state.orbState + "; last error: " + (state.lastError ?: "none"))
         }
