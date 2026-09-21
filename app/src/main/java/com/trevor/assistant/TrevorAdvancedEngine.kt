@@ -40,7 +40,7 @@ object TrevorDocumentExtractor {
                 val count = minOf(renderer.pageCount, 30)
                 for (i in 0 until count) {
                     renderer.openPage(i).use { page ->
-                        if (out.length >= MAX_CHARS) return@use
+                        if (out.length < MAX_CHARS) {
                         val scale = minOf(1.25f, 1800f / page.width.coerceAtLeast(1))
                         val width = (page.width * scale).toInt().coerceAtLeast(1)
                         val height = (page.height * scale).toInt().coerceAtLeast(1)
@@ -55,6 +55,7 @@ object TrevorDocumentExtractor {
                         val text = TrevorOcr.recognize(bitmap)
                         if (text.isNotBlank()) out.append("\n[Page ").append(i + 1).append("]\n").append(text)
                         bitmap.recycle()
+                        }
                     }
                 }
                 out.toString().trim().take(MAX_CHARS).ifBlank {
