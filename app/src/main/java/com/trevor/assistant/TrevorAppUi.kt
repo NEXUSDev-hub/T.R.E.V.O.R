@@ -584,7 +584,7 @@ private fun SmallActionButton(icon: androidx.compose.ui.graphics.vector.ImageVec
 }
 
 @Composable
-private fun FrostPanel(modifier: Modifier, accent: Color, content: @Composable ColumnScope.() -> Unit) {
+fun FrostPanel(modifier: Modifier, accent: Color, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier.background(Color(0xFF0A1C29).copy(alpha = 0.82f), RoundedCornerShape(24.dp))
             .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(24.dp)).padding(13.dp),
@@ -736,7 +736,7 @@ private fun TrevorIceScreen(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun TrevorTopBar(title: String, onBack: () -> Unit) {
+fun TrevorTopBar(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color(0xFFBCEAF5)) }
         Text(title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFFE8FAFF))
