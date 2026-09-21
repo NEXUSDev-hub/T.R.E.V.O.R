@@ -4,6 +4,7 @@ import android.app.*
 import android.content.*
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.*
 import kotlinx.coroutines.*
 import java.util.Calendar
@@ -32,6 +33,7 @@ object TrevorNotificationCenter {
     fun post(context: Context, title: String, message: String, task: TrevorTask? = null): Boolean {
         val settings = TrevorSettingsStore.load(context)
         if (settings.quietHours && isQuietHours()) return false
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
         ensureChannel(context)
         val open = PendingIntent.getActivity(
             context, 1001, Intent(context, MainActivity::class.java),
@@ -105,6 +107,14 @@ object TrevorTaskEngine {
         scheduleExisting(context, replacement)
     }
 
+    suspend fun defer(context: Context, id: String, delayMillis: Long) {
+        val task = TrevorPersistentMemory.task(context, id) ?: return
+        if (task.status == "COMPLETED") return
+        val replacement = task.copy(triggerAt = System.currentTimeMillis() + delayMillis, status = "PENDING")
+        TrevorPersistentMemory.saveTask(context, replacement)
+        scheduleExisting(context, replacement)
+    }
+
     private fun scheduleExisting(context: Context, task: TrevorTask) {
         val request = OneTimeWorkRequestBuilder<TrevorTaskWorker>()
             .setInitialDelay((task.triggerAt - System.currentTimeMillis()).coerceAtLeast(0), TimeUnit.MILLISECONDS)
@@ -130,8 +140,20 @@ class TrevorTaskWorker(appContext: Context, params: WorkerParameters) : Coroutin
         if (delivered) {
             TrevorPersistentMemory.setTaskStatus(applicationContext, id, "NOTIFIED")
         } else {
-            TrevorPersistentMemory.setTaskStatus(applicationContext, id, "PENDING")
-            return Result.retry()
+            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val delay = if (hour >= 22 || hour < 7) {
+                val next = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 7)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
+                }
+                next.timeInMillis - System.currentTimeMillis()
+            } else {
+                TimeUnit.MINUTES.toMillis(15)
+            }
+            TrevorTaskEngine.defer(applicationContext, id, delay)
         }
         return Result.success()
     }
