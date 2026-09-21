@@ -80,15 +80,22 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
                 if (key.isBlank()) message = "API key cannot be empty."
                 else {
                     TrevorProviderKeyStore.save(context, provider, key)
+                    if (provider == TrevorProviderId.GEMINI) SecureApiKeyStore.save(context, key)
                     message = "Saved securely on this device."
                 }
             }) { Icon(Icons.Filled.Key, null); Spacer(Modifier.width(6.dp)); Text("SAVE SECURELY") }
-            OutlinedButton(onClick = { TrevorProviderKeyStore.clear(context, provider); key = ""; message = "Key removed." }) { Text("REMOVE") }
+            OutlinedButton(onClick = {
+                TrevorProviderKeyStore.clear(context, provider)
+                if (provider == TrevorProviderId.GEMINI) SecureApiKeyStore.clear(context)
+                key = ""
+                message = "Key removed."
+            }) { Text("REMOVE") }
         }
 
         Text("4 • Test the connection", color = Color(0xFF58D9FF), fontSize = 11.sp)
         Button(enabled = !testing && key.isNotBlank(), onClick = {
             TrevorProviderKeyStore.save(context, provider, key)
+            if (provider == TrevorProviderId.GEMINI) SecureApiKeyStore.save(context, key)
             testing = true
             message = "Testing " + spec.displayName + " • " + spec.models.first().label + "…"
             scope.launch {
