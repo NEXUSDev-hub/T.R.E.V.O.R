@@ -42,11 +42,15 @@ object TrevorDocumentExtractor {
                     renderer.openPage(i).use { page ->
                         if (out.length >= MAX_CHARS) return@use
                         val scale = minOf(1.25f, 1800f / page.width.coerceAtLeast(1))
-                        val bitmap = Bitmap.createBitmap(
-                            (page.width * scale).toInt().coerceAtLeast(1),
-                            (page.height * scale).toInt().coerceAtLeast(1),
-                            Bitmap.Config.ARGB_8888
-                        )
+                        val width = (page.width * scale).toInt().coerceAtLeast(1)
+                        val height = (page.height * scale).toInt().coerceAtLeast(1)
+                        val maxPixels = 7_000_000L
+                        val safeScale = if (width.toLong() * height > maxPixels) {
+                            kotlin.math.sqrt(maxPixels.toDouble() / (page.width.toDouble() * page.height.toDouble()))
+                        } else 1.0
+                        val safeWidth = (page.width * scale * safeScale).toInt().coerceAtLeast(1)
+                        val safeHeight = (page.height * scale * safeScale).toInt().coerceAtLeast(1)
+                        val bitmap = Bitmap.createBitmap(safeWidth, safeHeight, Bitmap.Config.ARGB_8888)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         val text = TrevorOcr.recognize(bitmap)
                         if (text.isNotBlank()) out.append("\n[Page ").append(i + 1).append("]\n").append(text)
@@ -107,7 +111,15 @@ object TrevorDocumentExtractor {
     }
 
     private suspend fun extractImageOcr(context: Context, uri: Uri): String {
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            ?: error("Unable to open image.")
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("Unable to determine image dimensions.")
+        val maxPixels = 8_000_000L
+        var sample = 1
+        while ((bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > maxPixels) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1) }
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
             ?: error("Unable to decode image.")
         return try { TrevorOcr.recognize(bitmap).take(MAX_CHARS) } finally { bitmap.recycle() }
     }
@@ -154,8 +166,19 @@ object TrevorResearchVerifier {
         c.requestMethod = "HEAD"
         c.connectTimeout = 5000
         c.readTimeout = 7000
-        val code = c.responseCode
+        var code = c.responseCode
         c.disconnect()
+        if (code == 405 || code == 501) {
+            val get = URL(url).openConnection() as HttpURLConnection
+            get.instanceFollowRedirects = true
+            get.requestMethod = "GET"
+            get.connectTimeout = 5000
+            get.readTimeout = 7000
+            get.setRequestProperty("Range", "bytes=0-0")
+            code = get.responseCode
+            get.inputStream?.close()
+            get.disconnect()
+        }
         TrevorVerifiedSource(url, code in 200..399, code, if (code in 200..399) "reachable" else "HTTP " + code)
     }.getOrElse { TrevorVerifiedSource(url, false, null, "unreachable") }
 }
