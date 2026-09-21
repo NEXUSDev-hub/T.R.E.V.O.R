@@ -10,7 +10,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object GeminiAiProvider {
-    const val MODEL = "gemini-3.8-flash"
+    const val MODEL = "gemini-3.6-flash"
     private const val ENDPOINT =
         "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
     private const val MAX_INLINE_FILE_BYTES = 20L * 1024L * 1024L
