@@ -22,6 +22,7 @@ data class TrevorSettings(
     val geminiEnabled: Boolean = true,
     val autoProviderSwitch: Boolean = true,
     val preferredProvider: TrevorProviderId = TrevorProviderId.GEMINI,
+    val selectedModelId: String? = null,
     val proactiveNotifications: Boolean = true,
     val quietHours: Boolean = false,
     val orbEnabled: Boolean = true,
@@ -51,6 +52,7 @@ object TrevorSettingsStore {
             geminiEnabled = p.getBoolean("geminiEnabled", true),
             autoProviderSwitch = p.getBoolean("autoProviderSwitch", true),
             preferredProvider = runCatching { TrevorProviderId.valueOf(p.getString("preferredProvider", TrevorProviderId.GEMINI.name) ?: TrevorProviderId.GEMINI.name) }.getOrDefault(TrevorProviderId.GEMINI),
+            selectedModelId = p.getString("selectedModelId", null),
             proactiveNotifications = p.getBoolean("proactiveNotifications", true),
             quietHours = p.getBoolean("quietHours", false),
             orbEnabled = p.getBoolean("orbEnabled", true),
@@ -79,6 +81,7 @@ object TrevorSettingsStore {
             .putBoolean("geminiEnabled", s.geminiEnabled)
             .putBoolean("autoProviderSwitch", s.autoProviderSwitch)
             .putString("preferredProvider", s.preferredProvider.name)
+            .putString("selectedModelId", s.selectedModelId)
             .putBoolean("proactiveNotifications", s.proactiveNotifications)
             .putBoolean("quietHours", s.quietHours)
             .putBoolean("orbEnabled", s.orbEnabled)
