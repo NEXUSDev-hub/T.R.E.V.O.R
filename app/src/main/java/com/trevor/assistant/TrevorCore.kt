@@ -19,6 +19,7 @@ object TrevorCore {
         val clean = command.trim()
         if (clean.isBlank()) return finish(TrevorCoreResult.Error("Please enter a command."))
 
+        TrevorPersistentMemory.migrateLegacyMemories(context)
         val prefs = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
         val conversationId = prefs.getString("conversation_id", null) ?: UUID.randomUUID().toString().also {
             prefs.edit().putString("conversation_id", it).apply()
@@ -44,10 +45,12 @@ object TrevorCore {
 
         val remember = Regex("^remember\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
         if (remember != null) {
-            TrevorMemoryStore.add(context, remember)
             TrevorPersistentMemory.saveLongTermMemory(context, remember)
             return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
         }
+
+        val androidAction = TrevorAndroidActions.tryDispatch(context, clean)
+        if (androidAction != null) return finish(TrevorCoreResult.Answer(androidAction.detail))
 
         val resolvedMode = TrevorModeRouter.route(mode, clean)
         if (resolvedMode == TrevorMode.PROJECT) {
@@ -189,7 +192,11 @@ object TrevorCore {
         }
         val style = if (conciseResponses) "Keep the answer concise but complete." else "Give a reasonably detailed answer."
         val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
-        val memory = TrevorMemoryStore.relevant(context, input)
+        val memory = kotlinx.coroutines.runBlocking {
+            TrevorPersistentMemory.longTermMemory(context).map { it.content }.filter { saved ->
+                input.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
+            }.take(6)
+        }
         return listOf(
             TrevorIdentity.IMMUTABLE_DIRECTIVE,
             "Mode: " + mode.name,
