@@ -50,7 +50,7 @@ object TrevorFileService {
             TrevorStateStore.update { it.copy(fileState = TrevorFileState.VALIDATING, orbState = TrevorOrbState.PROCESSING_FILE, lastError = null) }
 
             val extractable = isTextLike(name, mime) || mime == "application/pdf" ||
-                name.endsWith(".doc", true) || name.endsWith(".docx", true) || mime.startsWith("image/")
+                name.endsWith(".doc", true) || name.endsWith(".docx", true) || mime == "application/rtf" || mime.startsWith("image/")
             if (!extractable) {
                 TrevorStateStore.update { it.copy(fileState = TrevorFileState.READY, orbState = TrevorOrbState.IDLE) }
                 return@withContext Result.success(TrevorAttachment(uri, name, mime, size, null, false))
