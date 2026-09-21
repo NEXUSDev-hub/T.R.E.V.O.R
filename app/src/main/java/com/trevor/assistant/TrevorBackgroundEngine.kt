@@ -10,6 +10,11 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object TrevorNotificationCenter {
+    private fun isQuietHours(): Boolean {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return hour >= 22 || hour < 7
+    }
+
     const val CHANNEL_ID = "trevor_intelligence"
     const val TASK_ID = "task_id"
     const val ACTION_DONE = "com.trevor.assistant.TASK_DONE"
@@ -24,6 +29,8 @@ object TrevorNotificationCenter {
     }
 
     fun post(context: Context, title: String, message: String, task: TrevorTask? = null) {
+        val settings = TrevorSettingsStore.load(context)
+        if (settings.quietHours && isQuietHours()) return
         ensureChannel(context)
         val open = PendingIntent.getActivity(
             context, 1001, Intent(context, MainActivity::class.java),
@@ -77,7 +84,8 @@ object TrevorTaskEngine {
     }
 
     suspend fun snooze(context: Context, id: String) {
-        val task = TrevorPersistentMemory.pendingTasks(context).firstOrNull { it.id == id } ?: return
+        val task = TrevorPersistentMemory.task(context, id) ?: return
+        if (task.status == "COMPLETED") return
         TrevorPersistentMemory.setTaskStatus(context, id, "SNOOZED")
         val replacement = task.copy(triggerAt = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(10), status = "PENDING")
         TrevorPersistentMemory.saveTask(context, replacement)
@@ -148,6 +156,7 @@ class TrevorProactiveWorker(appContext: Context, params: WorkerParameters) : Cor
             .getString("conversation_id", null)
         val recent = conversationId?.let { TrevorPersistentMemory.recentConversation(applicationContext, it, 4) }.orEmpty()
         val message = TrevorProactiveIntelligence.compose(settings.personality, pending, recent)
+        if (settings.quietHours) return Result.success()
         TrevorNotificationCenter.post(
             applicationContext,
             "TREVOR • " + TrevorNotificationPersonality.title(applicationContext),
