@@ -67,6 +67,18 @@ interface TrevorMemoryDao {
     @Query("UPDATE trevor_tasks SET status = :status WHERE id = :id")
     suspend fun setTaskStatus(id: String, status: String)
 
+    @Query("DELETE FROM long_term_memory WHERE id = :id")
+    suspend fun deleteMemory(id: Long)
+
+    @Query("DELETE FROM trevor_tasks WHERE id = :id")
+    suspend fun deleteTask(id: String)
+
+    @Query("DELETE FROM conversation_messages WHERE conversationId = :conversationId")
+    suspend fun deleteConversation(conversationId: String)
+
+    @Query("DELETE FROM project_memory WHERE projectId = :projectId")
+    suspend fun deleteProject(projectId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemory(memory: TrevorLongTermMemory)
 
@@ -128,6 +140,21 @@ object TrevorPersistentMemory {
 
     suspend fun setTaskStatus(context: Context, id: String, status: String) =
         withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().setTaskStatus(id, status) }
+
+    suspend fun task(context: Context, id: String): TrevorTask? =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().task(id) }
+
+    suspend fun deleteLongTermMemory(context: Context, id: Long) =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().deleteMemory(id) }
+
+    suspend fun deleteTask(context: Context, id: String) =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().deleteTask(id) }
+
+    suspend fun clearConversation(context: Context, conversationId: String) =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().deleteConversation(conversationId) }
+
+    suspend fun clearProjectMemory(context: Context, projectId: String) =
+        withContext(Dispatchers.IO) { TrevorDatabase.get(context).memoryDao().deleteProject(projectId) }
 
     suspend fun saveLongTermMemory(context: Context, content: String) =
         withContext(Dispatchers.IO) {
