@@ -65,7 +65,7 @@ private fun modeVisual(mode: TrevorMode): ModeVisual = when (mode) {
 }
 
 @Composable
-private fun TrevorApp(
+fun TrevorApp(
     context: Context,
     attachment: TrevorAttachment?,
     onPickFile: () -> Unit,
