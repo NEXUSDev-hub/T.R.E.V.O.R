@@ -310,9 +310,9 @@ object TrevorDiagnostics {
             appendLine("Creators: " + TrevorIdentity.CREATORS)
             appendLine("Android: " + android.os.Build.VERSION.RELEASE + " (SDK " + android.os.Build.VERSION.SDK_INT + ")")
             appendLine("Device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)
-            appendLine("AI: " + s.aiEnabled + "; offline-first: " + s.offlineFirst + "; auto-routing: " + s.autoProviderSwitch)
-            appendLine("Preferred provider: " + s.preferredProvider + "; proactive: " + s.proactiveEnabled)
-            val usage = TrevorProviderLimitTracker.usage(context, s.preferredProvider)
+            appendLine("AI: " + s.aiEnabled + "; offline-first: " + s.offlineFirst + "; fixed model: Gemini 3.6 Flash")
+            appendLine("AI provider: Google Gemini; model: Gemini 3.6 Flash; proactive: " + s.proactiveEnabled)
+            val usage = TrevorProviderLimitTracker.usage(context, TrevorProviderId.GEMINI)
             appendLine("Provider usage: minute=" + usage.minuteRequests + ", day=" + usage.dayRequests +
                 ", remainingRequests=" + (usage.remainingRequests?.toString() ?: "not reported") +
                 ", remainingTokens=" + (usage.remainingTokens?.toString() ?: "not reported"))
