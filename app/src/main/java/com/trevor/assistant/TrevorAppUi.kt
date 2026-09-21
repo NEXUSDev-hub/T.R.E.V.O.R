@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
 
-private enum class TrevorScreen { DASHBOARD, SETTINGS, API_KEY, DEVELOPER }
+private enum class TrevorScreen { DASHBOARD, SETTINGS, API_KEY, MEMORY, DEVELOPER }
 
 private data class ModeVisual(val title: String, val description: String, val accent: Color, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -90,7 +90,7 @@ private fun TrevorApp(
 
     BackHandler(enabled = screen != TrevorScreen.DASHBOARD) {
         screen = when (screen) {
-            TrevorScreen.API_KEY, TrevorScreen.DEVELOPER -> TrevorScreen.SETTINGS
+            TrevorScreen.API_KEY, TrevorScreen.MEMORY, TrevorScreen.DEVELOPER -> TrevorScreen.SETTINGS
             else -> TrevorScreen.DASHBOARD
         }
     }
@@ -103,8 +103,9 @@ private fun TrevorApp(
     )) {
         when (screen) {
             TrevorScreen.DASHBOARD -> TrevorDashboard(context, settings, attachment, onPickFile, onRemoveFile) { screen = TrevorScreen.SETTINGS }
-            TrevorScreen.SETTINGS -> TrevorSettingsScreen(context, settings, ::save, { screen = TrevorScreen.DASHBOARD }, { screen = TrevorScreen.API_KEY }, { screen = TrevorScreen.DEVELOPER })
+            TrevorScreen.SETTINGS -> TrevorSettingsScreen(context, settings, ::save, { screen = TrevorScreen.DASHBOARD }, { screen = TrevorScreen.API_KEY }, { screen = TrevorScreen.MEMORY }, { screen = TrevorScreen.DEVELOPER })
             TrevorScreen.API_KEY -> TrevorApiKeyScreen(context) { screen = TrevorScreen.SETTINGS }
+            TrevorScreen.MEMORY -> TrevorMemoryScreen(context) { screen = TrevorScreen.SETTINGS }
             TrevorScreen.DEVELOPER -> TrevorDeveloperScreen(context) { screen = TrevorScreen.SETTINGS }
         }
     }
@@ -598,6 +599,7 @@ private fun TrevorSettingsScreen(
     onChange: (TrevorSettings) -> Unit,
     onBack: () -> Unit,
     onApiKey: () -> Unit,
+    onMemory: () -> Unit,
     onDeveloper: () -> Unit
 ) {
     TrevorIceScreen {
@@ -608,7 +610,7 @@ private fun TrevorSettingsScreen(
             TrevorSwitch("Offline first", settings.offlineFirst) { onChange(settings.copy(offlineFirst = it)) }
             TrevorSwitch("Automatic provider failover", settings.autoProviderSwitch) { onChange(settings.copy(autoProviderSwitch = it)) }
             TrevorSwitch("Proactive notifications", settings.proactiveNotifications) { onChange(settings.copy(proactiveNotifications = it)) }
-            TrevorButton("Gemini API Key", Icons.Filled.Key, onApiKey, settings.accent.color)
+            TrevorButton("AI Provider Keys", Icons.Filled.Key, onApiKey, settings.accent.color)
         }
         TrevorSettingsSection("INTERFACE", settings.accent.color) {
             TrevorSwitch("Orb enabled", settings.orbEnabled) { onChange(settings.copy(orbEnabled = it)) }
@@ -625,6 +627,9 @@ private fun TrevorSettingsScreen(
                 Text("Rubbish mode runs every ${settings.rubbishIntervalSeconds}s while proactive mode is active.", color = Color(0xFF83AAB7), fontSize = 10.sp)
             }
             Text("Professional stays quiet unless useful. Chaotic and Deadpool can initiate assistant messages. Background behaviour is optional and uses an Android foreground service.", color = Color(0xFF83AAB7), fontSize = 10.sp)
+        }
+        TrevorSettingsSection("MEMORY + TASKS", settings.accent.color) {
+            TrevorButton("Memory and task manager", Icons.Filled.History, onMemory, settings.accent.color)
         }
         TrevorSettingsSection("DIAGNOSTICS", settings.accent.color) {
             TrevorButton("Developer diagnostics", Icons.Filled.Terminal, onDeveloper, settings.accent.color)
