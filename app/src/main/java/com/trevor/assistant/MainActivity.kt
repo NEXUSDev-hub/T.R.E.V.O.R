@@ -661,27 +661,7 @@ private fun TrevorSettingsScreen(
 
 @Composable
 private fun TrevorApiKeyScreen(context: Context, onBack: () -> Unit) {
-    var key by remember { mutableStateOf(SecureApiKeyStore.load(context) ?: "") }
-    var show by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
-    TrevorIceScreen {
-        TrevorTopBar("GEMINI API KEY", onBack)
-        TrevorSettingsSection("SECURE LOCAL STORAGE", Color(0xFF58D9FF)) {
-            Text("Stored locally using Android Keystore + AES/GCM.", fontSize = 12.sp, color = Color(0xFF9FC4D0))
-            OutlinedTextField(
-                value = key, onValueChange = { key = it; message = "" },
-                Modifier.fillMaxWidth(), singleLine = true,
-                visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF58D9FF), unfocusedBorderColor = Color(0xFF315465), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                trailingIcon = { IconButton(onClick = { show = !show }) { Icon(if (show) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, "Show or hide key") } }
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { if (key.isBlank()) message = "API key cannot be empty." else { SecureApiKeyStore.save(context, key.trim()); message = "API key saved." } }) { Text("SAVE") }
-                OutlinedButton(onClick = { SecureApiKeyStore.clear(context); key = ""; message = "API key removed." }) { Text("REMOVE") }
-            }
-            if (message.isNotBlank()) Text(message, color = Color(0xFF72F0D1), fontSize = 12.sp)
-        }
-    }
+    TrevorProviderSetupScreen(context, onBack)
 }
 
 @Composable
