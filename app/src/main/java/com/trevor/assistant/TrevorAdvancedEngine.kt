@@ -34,7 +34,7 @@ object TrevorDocumentExtractor {
 
     private suspend fun extractPdf(context: Context, uri: Uri): String {
         val pfd = context.contentResolver.openFileDescriptor(uri, "r") ?: error("Unable to open PDF.")
-        pfd.use {
+        return pfd.use {
             PdfRenderer(it).use { renderer ->
                 val out = StringBuilder()
                 val count = minOf(renderer.pageCount, 30)
