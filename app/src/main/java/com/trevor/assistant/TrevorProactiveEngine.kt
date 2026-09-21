@@ -38,7 +38,7 @@ object TrevorProactiveEngine {
             "- Never claim an action happened unless the context proves it."
 
         val ai = withContext(Dispatchers.IO) {
-            TrevorMultiProviderRouter.ask(context.applicationContext, prompt, settings.preferredProvider)
+            TrevorMultiProviderRouter.ask(context.applicationContext, prompt)
         }
         return ai.getOrElse {
             val output = state.lastOutput.orEmpty().lineSequence().firstOrNull { line -> line.isNotBlank() }.orEmpty()
