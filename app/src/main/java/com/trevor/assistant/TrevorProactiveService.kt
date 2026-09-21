@@ -31,7 +31,7 @@ class TrevorProactiveService : Service() {
                 else settings.spontaneousFrequencySeconds.toLong()
                 delay(interval * 1000L)
                 if (!isActive) break
-                val message = TrevorProactiveEngine.nextMessage(settings.personality, settings.rubbishMode)
+                val message = TrevorProactiveEngine.nextMessage(applicationContext, settings.personality, settings.rubbishMode)
                 TrevorStateStore.update { it.copy(lastOutput = "TREVOR • proactive\n$message") }
                 if (settings.backgroundNotifications) notifyMessage(message, settings.personality)
             }
@@ -98,36 +98,3 @@ class TrevorProactiveService : Service() {
     }
 }
 
-object TrevorProactiveEngine {
-    private val professional = listOf(
-        "I am monitoring the assistant state. No action is required right now.",
-        "Everything is quiet. I will only interrupt if something useful needs your attention.",
-        "TREVOR is standing by."
-    )
-    private val chaotic = listOf(
-        "Important update: I have absolutely no update. Carry on.",
-        "I have inspected the situation. The situation remains suspiciously situation-shaped.",
-        "TREVOR has entered maximum nonsense containment."
-    )
-    private val deadpool = listOf(
-        "Sir. I have news. It is mostly unnecessary, but I have news.",
-        "I checked the imaginary dashboard. It is very dashboard-y today.",
-        "Your highly sophisticated digital assistant has once again resisted becoming a toaster."
-    )
-    private val rubbish = listOf(
-        "Sir, urgent discovery: 🐟",
-        "I have concluded that the ceiling is probably doing its job.",
-        "Breaking news: a potato remains a potato.",
-        "TREVOR has achieved absolutely nothing. Productivity is terrifying."
-    )
-
-    fun nextMessage(personality: TrevorPersonality, rubbishMode: Boolean): String {
-        val pool = when {
-            personality == TrevorPersonality.FOR_YOU && rubbishMode -> rubbish
-            personality == TrevorPersonality.CHAOTIC -> chaotic
-            personality == TrevorPersonality.DEADPOOL -> deadpool
-            else -> professional
-        }
-        return pool.random()
-    }
-}
