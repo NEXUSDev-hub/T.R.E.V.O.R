@@ -49,7 +49,8 @@ object TrevorFileService {
 
             TrevorStateStore.update { it.copy(fileState = TrevorFileState.VALIDATING, orbState = TrevorOrbState.PROCESSING_FILE, lastError = null) }
 
-            val extractable = isTextLike(name, mime)
+            val extractable = isTextLike(name, mime) || mime == "application/pdf" ||
+                name.endsWith(".doc", true) || name.endsWith(".docx", true) || mime.startsWith("image/")
             if (!extractable) {
                 TrevorStateStore.update { it.copy(fileState = TrevorFileState.READY, orbState = TrevorOrbState.IDLE) }
                 return@withContext Result.success(TrevorAttachment(uri, name, mime, size, null, false))
@@ -57,19 +58,23 @@ object TrevorFileService {
 
             TrevorStateStore.update { it.copy(fileState = TrevorFileState.EXTRACTING, orbState = TrevorOrbState.PROCESSING_FILE) }
             val extracted = try {
-                resolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                    val out = StringBuilder()
-                    val buffer = CharArray(8192)
-                    while (out.length < MAX_TEXT_CHARS) {
-                        val read = reader.read(buffer, 0, minOf(buffer.size, MAX_TEXT_CHARS - out.length))
-                        if (read <= 0) break
-                        out.append(buffer, 0, read)
-                    }
-                    out.toString()
-                } ?: throw IllegalArgumentException("Unable to open the selected file.")
-            } catch (_: Exception) {
-                TrevorStateStore.update { it.copy(fileState = TrevorFileState.ERROR, orbState = TrevorOrbState.ERROR, lastError = "Unable to extract text from the selected file.") }
-                return@withContext Result.failure(IllegalArgumentException("Unable to extract text from the selected file."))
+                if (isTextLike(name, mime)) {
+                    resolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                        val out = StringBuilder()
+                        val buffer = CharArray(8192)
+                        while (out.length < MAX_TEXT_CHARS) {
+                            val read = reader.read(buffer, 0, minOf(buffer.size, MAX_TEXT_CHARS - out.length))
+                            if (read <= 0) break
+                            out.append(buffer, 0, read)
+                        }
+                        out.toString()
+                    } ?: throw IllegalArgumentException("Unable to open the selected file.")
+                } else {
+                    TrevorDocumentExtractor.extract(context, uri, name, mime).getOrThrow()
+                }
+            } catch (e: Exception) {
+                TrevorStateStore.update { it.copy(fileState = TrevorFileState.ERROR, orbState = TrevorOrbState.ERROR, lastError = e.message ?: "Unable to extract the selected file.") }
+                return@withContext Result.failure(IllegalArgumentException(e.message ?: "Unable to extract the selected file."))
             }
 
             TrevorStateStore.update { it.copy(fileState = TrevorFileState.READY, orbState = TrevorOrbState.IDLE, lastError = null) }
