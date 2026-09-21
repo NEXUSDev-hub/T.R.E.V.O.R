@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -39,13 +40,23 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
     var key by remember { mutableStateOf(TrevorProviderKeyStore.load(context, provider).orEmpty()) }
     var message by remember { mutableStateOf("") }
     var testing by remember { mutableStateOf(false) }
+    var showTutorial by remember { mutableStateOf(!context.getSharedPreferences("trevor_onboarding", Context.MODE_PRIVATE).getBoolean("api_tutorial_seen", false)) }
+    var modelMenu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val settings = TrevorSettingsStore.load(context)
     val spec = TrevorProviderRegistry.spec(provider)
+    val selectedModel = TrevorProviderRegistry.findModel(provider, if (provider == settings.preferredProvider) settings.selectedModelId else null) ?: spec.models.first()
 
     fun select(next: TrevorProviderId) {
         provider = next
         key = TrevorProviderKeyStore.load(context, next).orEmpty()
         message = ""
+    }
+
+    fun chooseModel(model: TrevorModelSpec) {
+        val current = TrevorSettingsStore.load(context)
+        TrevorSettingsStore.save(context, current.copy(preferredProvider = provider, selectedModelId = model.id))
+        message = "Active model: " + model.label
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -73,7 +84,31 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
                 .onFailure { message = "Could not open the provider page." }
         }) { Text("OPEN OFFICIAL KEY PAGE") }
 
-        Text("3 • Insert the key", color = Color(0xFF58D9FF), fontSize = 11.sp)
+        Text("3 • Choose the model", color = Color(0xFF58D9FF), fontSize = 11.sp)
+        Box(Modifier.fillMaxWidth()) {
+            Surface(
+                Modifier.fillMaxWidth().clickable { modelMenu = true },
+                color = Color(0xFF0B2230).copy(alpha = 0.82f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF58D9FF).copy(alpha = 0.32f))
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Active model", color = Color(0xFF58D9FF), fontSize = 10.sp)
+                    Text(selectedModel.label, color = Color.White, fontSize = 14.sp)
+                    Text("Provider: " + provider.displayName, color = Color(0xFF83AAB7), fontSize = 10.sp)
+                }
+            }
+            DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
+                spec.models.forEach { model ->
+                    DropdownMenuItem(
+                        text = { Text(model.label) },
+                        onClick = { chooseModel(model); modelMenu = false }
+                    )
+                }
+            }
+        }
+
+        Text("4 • Insert the key", color = Color(0xFF58D9FF), fontSize = 11.sp)
         OutlinedTextField(value = key, onValueChange = { key = it; message = "" }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(spec.displayName + " API key") })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
@@ -92,7 +127,7 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
             }) { Text("REMOVE") }
         }
 
-        Text("4 • Test the connection", color = Color(0xFF58D9FF), fontSize = 11.sp)
+        Text("5 • Test the connection", color = Color(0xFF58D9FF), fontSize = 11.sp)
         Button(enabled = !testing && key.isNotBlank(), onClick = {
             TrevorProviderKeyStore.save(context, provider, key)
             if (provider == TrevorProviderId.GEMINI) SecureApiKeyStore.save(context, key)
@@ -108,15 +143,49 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
             }
         }) { Text(if (testing) "TESTING…" else "TEST CONNECTION") }
 
-        Text("5 • Auto Switch", color = Color(0xFF58D9FF), fontSize = 11.sp)
+        Text("6 • Auto Switch", color = Color(0xFF58D9FF), fontSize = 11.sp)
         Text("When Auto Switch is enabled, TREVOR checks configured providers in its routing order. It reacts to observable errors such as rate limits, quota errors, timeouts and temporary server failures. It does not pretend to know future quota usage.", color = Color(0xFF9FC4D0), fontSize = 11.sp)
 
-        Text("6 • Your chat stays with TREVOR", color = Color(0xFF58D9FF), fontSize = 11.sp)
+        Text("7 • Your chat stays with TREVOR", color = Color(0xFF58D9FF), fontSize = 11.sp)
         Text("Conversation history is stored independently from the AI provider. Gemini → Groq → OpenAI can therefore continue the same TREVOR conversation instead of starting over.", color = Color(0xFF9FC4D0), fontSize = 11.sp)
 
-        Text("7 • Security", color = Color(0xFF58D9FF), fontSize = 11.sp)
+        Text("8 • Security", color = Color(0xFF58D9FF), fontSize = 11.sp)
         Text("API keys are encrypted with Android Keystore-backed AES/GCM storage. Never publish keys in a public repository, screenshots or chat messages.", color = Color(0xFF9FC4D0), fontSize = 11.sp)
 
+        OutlinedButton(onClick = { showTutorial = true }) {
+            Icon(Icons.Filled.Info, null)
+            Spacer(Modifier.width(6.dp))
+            Text("OPEN API KEY TUTORIAL")
+        }
+
         if (message.isNotBlank()) Text(message, color = if (message.startsWith("✕")) Color(0xFFFF7180) else Color(0xFF72F0D1), fontSize = 12.sp)
+
+        if (showTutorial) {
+            AlertDialog(
+                onDismissRequest = {
+                    showTutorial = false
+                    context.getSharedPreferences("trevor_onboarding", Context.MODE_PRIVATE).edit().putBoolean("api_tutorial_seen", true).apply()
+                },
+                title = { Text("TREVOR API KEY TUTORIAL") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("1. Pick a provider.")
+                        Text("2. Open its official API-key page.")
+                        Text("3. Sign in and create an API key.")
+                        Text("4. Copy it and return to TREVOR.")
+                        Text("5. Paste it and tap SAVE SECURELY.")
+                        Text("6. Choose the model, then TEST CONNECTION.")
+                        Text("7. Never put API keys in GitHub, source code, screenshots, or chat.")
+                        Text("Keys are stored locally with Android Keystore-backed encryption.")
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        showTutorial = false
+                        context.getSharedPreferences("trevor_onboarding", Context.MODE_PRIVATE).edit().putBoolean("api_tutorial_seen", true).apply()
+                    }) { Text("GOT IT") }
+                }
+            )
+        }
     }
 }
