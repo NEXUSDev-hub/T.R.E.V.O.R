@@ -6,12 +6,13 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.*
 import kotlinx.coroutines.*
+import java.util.Calendar
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object TrevorNotificationCenter {
     private fun isQuietHours(): Boolean {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         return hour >= 22 || hour < 7
     }
 
@@ -28,9 +29,9 @@ object TrevorNotificationCenter {
         }
     }
 
-    fun post(context: Context, title: String, message: String, task: TrevorTask? = null) {
+    fun post(context: Context, title: String, message: String, task: TrevorTask? = null): Boolean {
         val settings = TrevorSettingsStore.load(context)
-        if (settings.quietHours && isQuietHours()) return
+        if (settings.quietHours && isQuietHours()) return false
         ensureChannel(context)
         val open = PendingIntent.getActivity(
             context, 1001, Intent(context, MainActivity::class.java),
@@ -38,9 +39,13 @@ object TrevorNotificationCenter {
         )
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title).setContentText(message)
+            .setContentTitle(title)
+            .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setContentIntent(open).setAutoCancel(true)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
         task?.let {
             val done = PendingIntent.getBroadcast(
                 context, it.id.hashCode(),
@@ -55,8 +60,10 @@ object TrevorNotificationCenter {
             builder.addAction(android.R.drawable.ic_menu_save, "Done", done)
                 .addAction(android.R.drawable.ic_menu_recent_history, "Snooze 10m", snooze)
         }
+
         context.getSystemService(NotificationManager::class.java)
             .notify(task?.id?.hashCode() ?: System.currentTimeMillis().toInt(), builder.build())
+        return true
     }
 }
 
@@ -73,7 +80,9 @@ object TrevorTaskEngine {
     fun reschedulePending(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             TrevorPersistentMemory.pendingTasks(context).forEach { task ->
-                if (task.triggerAt > System.currentTimeMillis()) scheduleExisting(context, task)
+                if (task.status == "PENDING" && task.triggerAt > System.currentTimeMillis()) {
+                    scheduleExisting(context, task)
+                }
             }
         }
     }
@@ -86,8 +95,12 @@ object TrevorTaskEngine {
     suspend fun snooze(context: Context, id: String) {
         val task = TrevorPersistentMemory.task(context, id) ?: return
         if (task.status == "COMPLETED") return
+        WorkManager.getInstance(context).cancelUniqueWork(PREFIX + id)
         TrevorPersistentMemory.setTaskStatus(context, id, "SNOOZED")
-        val replacement = task.copy(triggerAt = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(10), status = "PENDING")
+        val replacement = task.copy(
+            triggerAt = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(10),
+            status = "PENDING"
+        )
         TrevorPersistentMemory.saveTask(context, replacement)
         scheduleExisting(context, replacement)
     }
@@ -105,14 +118,21 @@ object TrevorTaskEngine {
 class TrevorTaskWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val id = inputData.getString("task_id") ?: return Result.failure()
-        val task = TrevorPersistentMemory.pendingTasks(applicationContext).firstOrNull { it.id == id } ?: return Result.success()
-        TrevorNotificationCenter.post(
+        val task = TrevorPersistentMemory.task(applicationContext, id) ?: return Result.success()
+        if (task.status != "PENDING") return Result.success()
+
+        val delivered = TrevorNotificationCenter.post(
             applicationContext,
             "TREVOR • " + TrevorNotificationPersonality.title(applicationContext),
             TrevorNotificationPersonality.taskMessage(applicationContext, task),
             task
         )
-        TrevorPersistentMemory.setTaskStatus(applicationContext, id, "NOTIFIED")
+        if (delivered) {
+            TrevorPersistentMemory.setTaskStatus(applicationContext, id, "NOTIFIED")
+        } else {
+            TrevorPersistentMemory.setTaskStatus(applicationContext, id, "PENDING")
+            return Result.retry()
+        }
         return Result.success()
     }
 }
@@ -127,7 +147,9 @@ class TrevorTaskActionReceiver : BroadcastReceiver() {
                     TrevorNotificationCenter.ACTION_DONE -> TrevorTaskEngine.complete(context, id)
                     TrevorNotificationCenter.ACTION_SNOOZE -> TrevorTaskEngine.snooze(context, id)
                 }
-            } finally { pending.finish() }
+            } finally {
+                pending.finish()
+            }
         }
     }
 }
@@ -137,12 +159,16 @@ object TrevorBackgroundScheduler {
 
     fun ensureScheduled(context: Context) {
         val settings = TrevorSettingsStore.load(context)
-        if (!settings.backgroundNotifications) {
+        if (!settings.backgroundNotifications || !settings.proactiveEnabled) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK)
             return
         }
         val request = PeriodicWorkRequestBuilder<TrevorProactiveWorker>(30, TimeUnit.MINUTES).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.UPDATE, request)
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            WORK,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            request
+        )
         TrevorTaskEngine.reschedulePending(context)
     }
 }
@@ -150,32 +176,80 @@ object TrevorBackgroundScheduler {
 class TrevorProactiveWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val settings = TrevorSettingsStore.load(applicationContext)
-        if (!settings.proactiveEnabled || !settings.backgroundNotifications) return Result.success()
+        if (!settings.proactiveEnabled || !settings.backgroundNotifications || !settings.proactiveNotifications) {
+            return Result.success()
+        }
+
         val pending = TrevorPersistentMemory.pendingTasks(applicationContext)
         val conversationId = applicationContext.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
             .getString("conversation_id", null)
-        val recent = conversationId?.let { TrevorPersistentMemory.recentConversation(applicationContext, it, 4) }.orEmpty()
-        val message = TrevorProactiveIntelligence.compose(settings.personality, pending, recent)
-        if (settings.quietHours) return Result.success()
-        TrevorNotificationCenter.post(
+        val recent = conversationId?.let {
+            TrevorPersistentMemory.recentConversation(applicationContext, it, 6)
+        }.orEmpty()
+
+        val now = System.currentTimeMillis()
+        val actionable = pending.any {
+            it.status == "NOTIFIED" || it.triggerAt <= now + TimeUnit.MINUTES.toMillis(30)
+        }
+
+        val prefs = applicationContext.getSharedPreferences("trevor_proactive", Context.MODE_PRIVATE)
+        val last = prefs.getLong("last_notification", 0L)
+        val minimumGap = if (actionable) TimeUnit.MINUTES.toMillis(15)
+            else TimeUnit.SECONDS.toMillis(settings.spontaneousFrequencySeconds.toLong())
+        if (now - last < minimumGap) return Result.success()
+
+        if (settings.quietHours && isQuietHours()) return Result.success()
+        if (!actionable && settings.personality == TrevorPersonality.PROFESSIONAL) return Result.success()
+
+        val message = TrevorProactiveIntelligence.compose(
+            applicationContext,
+            settings.personality,
+            pending,
+            recent,
+            actionable
+        )
+
+        val delivered = TrevorNotificationCenter.post(
             applicationContext,
             "TREVOR • " + TrevorNotificationPersonality.title(applicationContext),
             message
         )
+        if (delivered) prefs.edit().putLong("last_notification", now).apply()
         return Result.success()
+    }
+
+    private fun isQuietHours(): Boolean {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return hour >= 22 || hour < 7
     }
 }
 
 object TrevorProactiveIntelligence {
-    fun compose(personality: TrevorPersonality, pending: List<TrevorTask>, recent: List<TrevorConversationMessage>): String {
-        val overdue = pending.count { it.triggerAt <= System.currentTimeMillis() }
+    fun compose(
+        context: Context,
+        personality: TrevorPersonality,
+        pending: List<TrevorTask>,
+        recent: List<TrevorConversationMessage>,
+        actionable: Boolean
+    ): String {
+        val now = System.currentTimeMillis()
+        val overdue = pending.count { it.triggerAt <= now && it.status != "COMPLETED" }
+        val next = pending.filter { it.triggerAt > now }.minByOrNull { it.triggerAt }
+        val minutesToNext = next?.let { TimeUnit.MILLISECONDS.toMinutes(it.triggerAt - now) }
+        val battery = context.getSystemService(android.os.BatteryManager::class.java)
+            ?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+
         return when {
-            overdue > 0 -> "You have " + overdue + " scheduled task" + if (overdue == 1) "" else "s" + " waiting for attention."
-            pending.isNotEmpty() -> "I have " + pending.size + " upcoming task" + if (pending.size == 1) "" else "s" + " queued."
+            overdue > 0 ->
+                "You have $overdue overdue task${if (overdue == 1) "" else "s"} waiting for attention."
+            next != null && minutesToNext != null && minutesToNext <= 30 ->
+                "Heads-up: ${next.title} is due in about ${minutesToNext.coerceAtLeast(1)} minute${if (minutesToNext == 1L) "" else "s"}."
+            actionable && pending.isNotEmpty() ->
+                "TREVOR checked your task queue. ${pending.size} task${if (pending.size == 1) "" else "s"} need attention soon."
             recent.isNotEmpty() -> when (personality) {
-                TrevorPersonality.DEADPOOL -> "Chat memory is intact. No pending tasks. The chaos department is currently unemployed."
+                TrevorPersonality.DEADPOOL -> "Memory is intact, tasks are quiet, and the chaos department is currently unemployed."
                 TrevorPersonality.CHAOTIC -> "Memory is online, tasks are quiet, and the situation remains suspiciously under control."
-                TrevorPersonality.FOR_YOU -> "I checked your current TREVOR state. Nothing needs your attention right now."
+                TrevorPersonality.FOR_YOU -> if (battery in 0..15) "Low battery detected. Might be a good time to charge the device." else "I checked the current state. Nothing needs your attention right now."
                 else -> "TREVOR checked the current state. Nothing needs your attention right now."
             }
             else -> "TREVOR is standing by. No scheduled task needs your attention."
