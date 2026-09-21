@@ -78,7 +78,7 @@ object TrevorLocalEngine {
         return TrevorEngineResult.NeedAI(input)
     }
 
-    private fun dictionaryAnswer(entry: OfflineDictionary.Entry): TrevorEngineResult.Answer =
+    private fun dictionaryAnswer(entry: DictionaryEntry): TrevorEngineResult.Answer =
         TrevorEngineResult.Answer("${entry.word}\n\n${entry.definition}\n\nCategory: ${entry.category}")
 
     private fun format(value: Double): String =
