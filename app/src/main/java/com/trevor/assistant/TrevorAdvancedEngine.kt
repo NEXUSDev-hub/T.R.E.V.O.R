@@ -17,8 +17,8 @@ object TrevorDocumentExtractor {
     private const val MAX_CHARS = 80000
     suspend fun extract(context: Context, uri: Uri, name: String, mime: String): Result<String> =
         withContext(Dispatchers.IO) {
-            runCatching {
-                when {
+            try {
+                val value = when {
                     mime == "application/pdf" || name.endsWith(".pdf", true) -> extractPdf(context, uri)
                     mime.contains("wordprocessingml") || name.endsWith(".docx", true) -> extractDocx(context, uri)
                     name.endsWith(".doc", true) || mime == "application/msword" -> extractLegacyDoc(context, uri)
@@ -26,6 +26,9 @@ object TrevorDocumentExtractor {
                     else -> context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(MAX_CHARS) }
                         ?: error("Unable to open file.")
                 }
+                Result.success(value)
+            } catch (e: Exception) {
+                Result.failure(e)
             }
         }
 
