@@ -5,6 +5,15 @@ import kotlinx.coroutines.yield
 import java.util.UUID
 
 object TrevorCore {
+    // Keeps ordinary AI requests small. Local tools still answer first, so many requests use 0 API tokens.
+    private const val MAX_HISTORY_MESSAGES = 6
+    private const val MAX_HISTORY_ITEM_CHARS = 700
+    private const val MAX_PROJECT_ITEMS = 8
+    private const val MAX_PROJECT_ITEM_CHARS = 700
+    private const val MAX_MEMORY_ITEMS = 4
+    private const val MAX_MEMORY_ITEM_CHARS = 500
+    private const val MAX_ENRICHED_CHARS = 9_000
+
     suspend fun process(
         context: Context,
         command: String,
@@ -29,7 +38,7 @@ object TrevorCore {
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
         if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
 
-        val remind = Regex("^remind me in\\s+(\\d+)\\s+(second|seconds|minute|minutes|hour|hours)\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)
+        val remind = Regex("^remind me in\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours)\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)
         if (remind != null) {
             val amount = remind.groupValues[1].toLong()
             val unit = remind.groupValues[2].lowercase()
@@ -43,7 +52,7 @@ object TrevorCore {
             return finish(TrevorCoreResult.Answer("Scheduled locally: $title"))
         }
 
-        val remember = Regex("^remember\\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
+        val remember = Regex("^remember\s+(.+)$", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
         if (remember != null) {
             TrevorPersistentMemory.saveLongTermMemory(context, remember)
             return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
@@ -119,34 +128,66 @@ object TrevorCore {
 
         TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
         val settings = TrevorSettingsStore.load(context.applicationContext)
-        val conversationId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE).getString("conversation_id", null)
+        val conversationId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
+            .getString("conversation_id", null)
+
+        // Only send a small, recent slice of history. Older context remains in Room but is not
+        // repeatedly paid for on every request.
         val history = conversationId?.let {
-            TrevorPersistentMemory.recentConversation(context, it, 12)
-                .joinToString("\n") { m -> m.role + ": " + m.content }
+            TrevorPersistentMemory.recentConversation(context, it, MAX_HISTORY_MESSAGES)
+                .takeLast(MAX_HISTORY_MESSAGES)
+                .joinToString("\n") { m ->
+                    m.role + ": " + m.content.trim().take(MAX_HISTORY_ITEM_CHARS)
+                }
         }.orEmpty()
+
         val projectContext = if (mode == TrevorMode.PROJECT) {
-            val projectId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE).getString("project_id", "default") ?: "default"
-            TrevorPersistentMemory.projectMemory(context, projectId).takeLast(20)
-                .joinToString("\n") { it.content }
+            val projectId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
+                .getString("project_id", "default") ?: "default"
+            TrevorPersistentMemory.projectMemory(context, projectId)
+                .takeLast(MAX_PROJECT_ITEMS)
+                .joinToString("\n") { it.content.trim().take(MAX_PROJECT_ITEM_CHARS) }
         } else ""
-        val longTermContext = TrevorPersistentMemory.longTermMemory(context)
-            .take(20)
-            .joinToString("\n") { it.content }
+
+        // Prefer memories that overlap with the current request instead of dumping the whole
+        // long-term memory store into every API call.
+        val queryTerms = input.lowercase()
+            .split(Regex("\W+"))
+            .filter { it.length > 2 }
+            .distinct()
+            .take(24)
+
+        val memories = TrevorPersistentMemory.longTermMemory(context)
+        val relevantMemories = memories
+            .sortedByDescending { memory ->
+                val saved = memory.content.lowercase()
+                queryTerms.count { term -> saved.contains(term) }
+            }
+            .filter { memory ->
+                queryTerms.any { term -> memory.content.lowercase().contains(term) }
+            }
+            .take(MAX_MEMORY_ITEMS)
+
+        val longTermContext = relevantMemories.joinToString("\n") {
+            it.content.trim().take(MAX_MEMORY_ITEM_CHARS)
+        }
+
         val enriched = buildString {
-            append(input)
+            append(input.trim().take(4_000))
             if (history.isNotBlank()) {
-                append("\n\nRelevant recent TREVOR conversation:\n")
+                append("\n\nRecent conversation:\n")
                 append(history)
             }
             if (projectContext.isNotBlank()) {
-                append("\n\nPersistent project context:\n")
+                append("\n\nRelevant project context:\n")
                 append(projectContext)
             }
             if (longTermContext.isNotBlank()) {
-                append("\n\nApproved long-term TREVOR memory:\n")
+                append("\n\nRelevant approved memory:\n")
                 append(longTermContext)
             }
-        }
+        }.take(MAX_ENRICHED_CHARS)
+
         if (mode == TrevorMode.RESEARCH) {
             val geminiKey = SecureApiKeyStore.load(context)
             if (!geminiKey.isNullOrBlank()) {
@@ -194,11 +235,10 @@ object TrevorCore {
         val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
         val memory = kotlinx.coroutines.runBlocking {
             TrevorPersistentMemory.longTermMemory(context).map { it.content }.filter { saved ->
-                input.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
+                input.lowercase().split(Regex("\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
             }.take(6)
         }
         return listOf(
-            TrevorIdentity.IMMUTABLE_DIRECTIVE,
             "Mode: " + mode.name,
             if (memory.isNotEmpty()) "Relevant approved local memory:\n- " + memory.joinToString("\n- ") else "",
             modeInstruction,
@@ -206,7 +246,7 @@ object TrevorCore {
             technical,
             attachment?.let { "Attached file: " + it.name + " (" + it.mimeType + "). Use it as authoritative user-provided context." } ?: "",
             "User request:",
-            input,
+            input.take(4_000),
             "Never claim an action was performed unless it was actually performed and verified."
         ).filter { it.isNotBlank() }.joinToString("\n")
     }
