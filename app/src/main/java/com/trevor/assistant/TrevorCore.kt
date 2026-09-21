@@ -126,6 +126,9 @@ object TrevorCore {
             TrevorPersistentMemory.projectMemory(context, projectId).takeLast(20)
                 .joinToString("\n") { it.content }
         } else ""
+        val longTermContext = TrevorPersistentMemory.longTermMemory(context)
+            .take(20)
+            .joinToString("\n") { it.content }
         val enriched = buildString {
             append(input)
             if (history.isNotBlank()) {
@@ -135,6 +138,10 @@ object TrevorCore {
             if (projectContext.isNotBlank()) {
                 append("\n\nPersistent project context:\n")
                 append(projectContext)
+            }
+            if (longTermContext.isNotBlank()) {
+                append("\n\nApproved long-term TREVOR memory:\n")
+                append(longTermContext)
             }
         }
         if (mode == TrevorMode.RESEARCH) {
