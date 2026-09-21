@@ -77,6 +77,11 @@ object TrevorProviderRegistry {
     )
 
     fun spec(id: TrevorProviderId): TrevorProviderSpec = providers.first { it.id == id }
+
+    fun findModel(provider: TrevorProviderId, modelId: String?): TrevorModelSpec? =
+        modelId?.let { id -> spec(provider).models.firstOrNull { it.id == id } }
+
+    fun modelsFor(provider: TrevorProviderId): List<TrevorModelSpec> = spec(provider).models
 }
 
 interface TrevorAiProvider {
