@@ -205,6 +205,17 @@ object TrevorErrorEngine {
     }
 }
 
+data class TrevorActionResult(val requested: String, val dispatched: Boolean, val verified: Boolean, val detail: String)
+
+object TrevorActionVerifier {
+    fun verifyDispatch(context: Context, action: String): TrevorActionResult {
+        val pm = context.packageManager
+        val intent = android.content.Intent(action)
+        val resolvable = intent.resolveActivity(pm) != null
+        return TrevorActionResult(action, resolvable, resolvable, if (resolvable) "Intent handler available." else "No handler is installed.")
+    }
+}
+
 object TrevorAndroidBridge {
     fun tasker(context: Context, action: String, payload: String = ""): Result<Unit> = runCatching {
         context.sendBroadcast(
