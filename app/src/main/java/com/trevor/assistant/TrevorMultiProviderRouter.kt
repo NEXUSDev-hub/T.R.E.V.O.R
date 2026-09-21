@@ -30,7 +30,14 @@ object TrevorMultiProviderRouter {
             if (!TrevorProviderLimitTracker.allow(context, provider)) continue
             val key = TrevorProviderKeyStore.load(context, provider) ?: continue
             val spec = TrevorProviderRegistry.spec(provider)
-            for (model in spec.models) {
+            val selected = if (provider == settings.preferredProvider)
+                TrevorProviderRegistry.findModel(provider, settings.selectedModelId)
+            else null
+            val models = buildList {
+                selected?.let(::add)
+                spec.models.filter { it.id != selected?.id }.forEach(::add)
+            }
+            for (model in models) {
                 TrevorProviderLimitTracker.recordRequest(context, provider)
                 val result = TrevorHttpProvider(provider).ask(context, key, model, prompt)
                 if (result.isSuccess) {
@@ -50,8 +57,12 @@ object TrevorMultiProviderRouter {
 
     suspend fun testSingle(context: Context, provider: TrevorProviderId, prompt: String = "Reply with exactly: TREVOR connection test successful."): Result<String> {
         val key = TrevorProviderKeyStore.load(context, provider) ?: return Result.failure(IllegalStateException("API key is not configured."))
+        val settings = TrevorSettingsStore.load(context)
         val spec = TrevorProviderRegistry.spec(provider)
-        return TrevorHttpProvider(provider).ask(context, key, spec.models.first(), prompt)
+        val selected = if (provider == settings.preferredProvider)
+            TrevorProviderRegistry.findModel(provider, settings.selectedModelId)
+        else null
+        return TrevorHttpProvider(provider).ask(context, key, selected ?: spec.models.first(), prompt)
     }
 
     private fun isTemporary(error: Throwable?): Boolean {
