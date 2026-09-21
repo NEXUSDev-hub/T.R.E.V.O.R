@@ -18,8 +18,8 @@ android {
         applicationId = "com.trevor.assistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.0.3"
+        versionCode = 4
+        versionName = "0.0.4"
     }
 
     buildFeatures {
@@ -42,6 +42,7 @@ android {
         implementation("androidx.room:room-runtime:2.8.5")
         implementation("androidx.work:work-runtime:2.11.2")
         implementation("com.google.mlkit:text-recognition:16.0.1")
+        implementation("com.squareup.okhttp3:okhttp:4.12.0")
         ksp("androidx.room:room-compiler:2.8.5")
     }
 }
