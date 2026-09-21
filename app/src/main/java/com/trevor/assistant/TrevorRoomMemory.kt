@@ -113,6 +113,25 @@ abstract class TrevorDatabase : RoomDatabase() {
 }
 
 object TrevorPersistentMemory {
+    private const val LEGACY_PREFS = "trevor_memory"
+    private const val LEGACY_KEY = "approved"
+    private const val LEGACY_IMPORTED = "legacy_memory_imported"
+
+    suspend fun migrateLegacyMemories(context: Context) = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(LEGACY_IMPORTED, false)) return@withContext
+        val raw = prefs.getString(LEGACY_KEY, "[]") ?: "[]"
+        val values = runCatching { org.json.JSONArray(raw) }.getOrElse { org.json.JSONArray() }
+        val dao = TrevorDatabase.get(context).memoryDao()
+        for (i in 0 until values.length()) {
+            val value = values.optString(i).trim()
+            if (value.isNotBlank()) dao.insertMemory(
+                TrevorLongTermMemory(content = value.take(1000), timestamp = System.currentTimeMillis())
+            )
+        }
+        prefs.edit().clear().putBoolean(LEGACY_IMPORTED, true).apply()
+    }
+
     suspend fun saveMessage(context: Context, conversationId: String, role: String, content: String, provider: String?) =
         withContext(Dispatchers.IO) {
             TrevorDatabase.get(context).memoryDao().insertMessage(
