@@ -70,6 +70,7 @@ private fun TrevorApp(
     onRemoveFile: () -> Unit
 ) {
     var screen by remember { mutableStateOf(TrevorScreen.DASHBOARD) }
+    LaunchedEffect(Unit) { TrevorBackgroundScheduler.ensureScheduled(context) }
     var settings by remember { mutableStateOf(TrevorSettingsStore.load(context)) }
     LaunchedEffect(settings.proactiveEnabled) {
         val intent = android.content.Intent(context, TrevorProactiveService::class.java)
@@ -123,6 +124,12 @@ private fun TrevorDashboard(
     val scope = rememberCoroutineScope()
     val landscape = LocalConfiguration.current.screenWidthDp > LocalConfiguration.current.screenHeightDp
     val visual = modeVisual(mode)
+    var memoryCount by remember { mutableStateOf(0) }
+    var taskCount by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        memoryCount = TrevorPersistentMemory.longTermMemory(context).size
+        taskCount = TrevorPersistentMemory.pendingTasks(context).size
+    }
 
     fun selectMode(next: TrevorMode) {
         mode = next
@@ -182,6 +189,7 @@ private fun TrevorDashboard(
                     }
                     Text(TrevorIdentity.FULL_NAME + " • Made by " + TrevorIdentity.CREATORS, color = Color(0xFF9FC4D0), fontSize = 10.sp)
                     Text("${TrevorVersion.label(context)}  •  ${state.orbState.name}", color = visual.accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Memory $memoryCount  •  Tasks $taskCount  •  Auto-routing ${if (settings.autoProviderSwitch) "ON" else "OFF"}", color = Color(0xFF7FA9B6), fontSize = 9.sp)
                 }
                 IconButton(onClick = onSettings) {
                     Icon(Icons.Filled.Settings, "Settings", tint = Color(0xFFBCEAF5))
