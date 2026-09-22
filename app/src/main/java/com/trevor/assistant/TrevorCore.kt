@@ -34,6 +34,7 @@ object TrevorCore {
             prefs.edit().putString("conversation_id", it).apply()
         }
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
+        val aiTaskId = UUID.randomUUID().toString()
 
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)\n        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled && (clean.contains("usage", true) || clean.contains("phone use", true) || clean.contains("usage pattern", true))) {\n            return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))\n        }\n        val automation = TrevorAutomationEngine.plan(clean)\n        if (automation != null) return finish(TrevorCoreResult.Answer(TrevorAutomationEngine.execute(context, automation)))
         if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
@@ -95,10 +96,10 @@ object TrevorCore {
             when (val local = TrevorLocalEngine.processCommand(clean)) {
                 is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
                 is TrevorEngineResult.Error -> TrevorCoreResult.Error(local.message)
-                is TrevorEngineResult.NeedAI -> requestAi(context, local.prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
+                is TrevorEngineResult.NeedAI -> requestAi(context, aiTaskId, local.prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
             }
         } else {
-            val aiResult = requestAi(context, prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
+            val aiResult = requestAi(context, aiTaskId, prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
             if (aiResult is TrevorCoreResult.Answer) aiResult
             else if (offlineFirst && attachment == null) {
                 when (val local = TrevorLocalEngine.processCommand(clean)) {
@@ -116,6 +117,7 @@ object TrevorCore {
 
     private suspend fun requestAi(
         context: Context,
+        taskId: String,
         input: String,
         mode: TrevorMode,
         aiEnabled: Boolean,
@@ -125,9 +127,11 @@ object TrevorCore {
         attachment: TrevorAttachment?
     ): TrevorCoreResult {
         if (!aiEnabled) return TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
+        if (!TrevorAiBudget.reserve(context, taskId)) {
+            return TrevorCoreResult.Error("AI reasoning budget exhausted for this task. TREVOR will continue locally where possible.")
+        }
 
         TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
-        val settings = TrevorSettingsStore.load(context.applicationContext)
         val conversationId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
             .getString("conversation_id", null)
 
