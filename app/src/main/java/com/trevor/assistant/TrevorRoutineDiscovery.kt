@@ -58,8 +58,24 @@ object TrevorRoutineDiscovery {
                 )
             }
             .filter { it.confidence >= MIN_CONFIDENCE }
-            .sortedByDescending { it.confidence }
-            .take(MAX_SUGGESTIONS)
+            .sortedWith(
+                compareByDescending<TrevorRoutineSuggestion> { it.confidence }
+                    .thenByDescending { it.observations }
+                    .thenByDescending { it.sequence.size }
+            )
+            .fold(mutableListOf<TrevorRoutineSuggestion>()) { selected, item ->
+                // Avoid flooding the UI with a short prefix of a stronger,
+                // longer routine. Keep the more informative pattern.
+                val coveredByStronger = selected.any { stronger ->
+                    stronger.sequence.size > item.sequence.size &&
+                        stronger.sequence.take(item.sequence.size) == item.sequence &&
+                        stronger.confidence >= item.confidence
+                }
+                if (!coveredByStronger && selected.size < MAX_SUGGESTIONS) {
+                    selected.add(item)
+                }
+                selected
+            }
     }
 
     fun summary(context: Context): String {
