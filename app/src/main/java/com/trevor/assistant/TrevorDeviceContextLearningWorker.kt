@@ -22,6 +22,10 @@ class TrevorDeviceContextLearningWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        val settings = TrevorSettingsStore.load(applicationContext)
+        if (!settings.usageIntelligenceEnabled) return Result.success()
+        if (!TrevorDeviceContextLearning.hasUsageAccess(applicationContext)) return Result.success()
+
         return runCatching {
             TrevorDeviceContextLearning.recordCurrentForegroundContext(applicationContext)
             Result.success()
