@@ -182,6 +182,7 @@ object TrevorBackgroundScheduler {
     fun ensureScheduled(context: Context) {
         // Silent local behaviour learning runs independently of proactive notifications.
         TrevorBehaviorLearning.ensureBackgroundLearning(context)
+        TrevorDeviceContextLearningScheduler.ensureScheduled(context, TrevorSettingsStore.load(context).usageIntelligenceEnabled)
 
         val settings = TrevorSettingsStore.load(context)
         if (!settings.backgroundNotifications || !settings.proactiveEnabled) {
