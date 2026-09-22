@@ -6,6 +6,10 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
@@ -56,10 +60,14 @@ object TrevorDeviceContextLearningScheduler {
             request
         )
 
-        // Capture one observation promptly instead of waiting for the first
-        // periodic WorkManager window.
-        runCatching {
-            TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
+        // Do not query UsageStats or write learning data on the Activity/main thread.
+        // The periodic worker will provide the durable background sampling path.
+        if (TrevorDeviceContextLearning.hasUsageAccess(context)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                runCatching {
+                    TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
+                }
+            }
         }
     }
 }
