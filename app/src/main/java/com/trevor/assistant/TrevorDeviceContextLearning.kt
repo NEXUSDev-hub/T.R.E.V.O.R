@@ -9,8 +9,10 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.PowerManager
+import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.os.Process
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
@@ -152,7 +154,24 @@ object TrevorDeviceContextLearning {
         return updated
     }
 
-    fun recordCurrentForegroundContext(context: Context): ContextObservation {
+    fun hasUsageAccess(context: Context): Boolean {
+        val appOps = context.getSystemService(AppOpsManager::class.java) ?: return false
+        return runCatching {
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                context.packageName
+            ) == AppOpsManager.MODE_ALLOWED
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Records context only when Usage Access can identify a real foreground app.
+     * Returning null prevents meaningless "*" observations from being learned.
+     */
+    fun recordCurrentForegroundContext(context: Context): ContextObservation? {
+        if (!hasUsageAccess(context)) return null
+
         val manager = context.getSystemService(UsageStatsManager::class.java)
         val now = System.currentTimeMillis()
         var foregroundPackage: String? = null
@@ -173,7 +192,8 @@ object TrevorDeviceContextLearning {
                 }
             }
         }
-        return record(context, foregroundPackage)
+        val packageName = foregroundPackage ?: return null
+        return record(context, packageName)
     }
 
     fun observations(context: Context): List<ContextObservation> {
