@@ -198,9 +198,7 @@ object TrevorBackgroundScheduler {
 class TrevorProactiveWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val settings = TrevorSettingsStore.load(applicationContext)
-        if (!settings.proactiveEnabled || !settings.backgroundNotifications || !settings.proactiveNotifications) {
-            return Result.success()
-        }
+        if (!settings.proactiveEnabled || !settings.backgroundNotifications || !settings.proactiveNotifications) return Result.success()
 
         val pending = TrevorPersistentMemory.pendingTasks(applicationContext)
         val conversationId = applicationContext.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
@@ -209,41 +207,19 @@ class TrevorProactiveWorker(appContext: Context, params: WorkerParameters) : Cor
             TrevorPersistentMemory.recentConversation(applicationContext, it, 6)
         }.orEmpty()
 
-        val now = System.currentTimeMillis()
-        val actionable = pending.any {
-            it.status == "NOTIFIED" || it.triggerAt <= now + TimeUnit.MINUTES.toMillis(30)
-        }
+        val decision = TrevorProactiveDecisionEngine.decide(applicationContext, pending, recent)
+        if (decision.action != TrevorProactiveDecisionEngine.Action.GENERATE) return Result.success()
 
-        val prefs = applicationContext.getSharedPreferences("trevor_proactive", Context.MODE_PRIVATE)
-        val last = prefs.getLong("last_notification", 0L)
-        val minimumGap = if (actionable) TimeUnit.MINUTES.toMillis(15)
-            else TimeUnit.SECONDS.toMillis(settings.spontaneousFrequencySeconds.toLong())
-        if (now - last < minimumGap) return Result.success()
-
-        if (settings.quietHours && isQuietHours()) return Result.success()
-        if (!actionable && settings.personality == TrevorPersonality.PROFESSIONAL) return Result.success()
-
-        val message = TrevorProactiveIntelligence.compose(
-            applicationContext,
-            settings.personality,
-            pending,
-            recent,
-            actionable
-        )
-        if (message.trim().equals("[NOOP]", ignoreCase = true)) return Result.success()
+        val message = TrevorProactiveDecisionEngine.generate(applicationContext, decision, pending, recent)
+        if (message.trim().equals("[NOOP]", ignoreCase = true) || message.isBlank()) return Result.success()
 
         val delivered = TrevorNotificationCenter.post(
             applicationContext,
             "TREVOR • " + TrevorNotificationPersonality.title(applicationContext),
             message
         )
-        if (delivered) prefs.edit().putLong("last_notification", now).apply()
+        if (delivered) TrevorProactiveDecisionEngine.markDelivered(applicationContext, decision)
         return Result.success()
-    }
-
-    private fun isQuietHours(): Boolean {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        return hour >= 22 || hour < 7
     }
 }
 
