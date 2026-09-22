@@ -1,6 +1,8 @@
 package com.trevor.assistant
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.util.UUID
 
@@ -56,7 +58,10 @@ object TrevorCore {
         }
         val automation = TrevorAutomationEngine.plan(clean)
         if (automation != null) {
-            return finish(TrevorCoreResult.Answer(TrevorAutomationEngine.execute(context, automation)))
+            val automationResult = withContext(Dispatchers.IO) {
+                TrevorAutomationEngine.execute(context, automation)
+            }
+            return finish(TrevorCoreResult.Answer(automationResult))
         }
         if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
 
@@ -240,7 +245,7 @@ object TrevorCore {
         )
     }
 
-    private fun buildPrompt(
+    private suspend fun buildPrompt(
         context: Context,
         input: String,
         mode: TrevorMode,
@@ -258,11 +263,9 @@ object TrevorCore {
         }
         val style = if (conciseResponses) "Keep the answer concise but complete." else "Give a reasonably detailed answer."
         val technical = if (technicalDetail) "Use technical detail when it helps." else "Avoid unnecessary technical detail."
-        val memory = kotlinx.coroutines.runBlocking {
-            TrevorPersistentMemory.longTermMemory(context).map { it.content }.filter { saved ->
-                input.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
-            }.take(6)
-        }
+        val memory = TrevorPersistentMemory.longTermMemory(context).map { it.content }.filter { saved ->
+            input.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.any { term -> saved.lowercase().contains(term) }
+        }.take(6)
         return listOf(
             "Mode: " + mode.name,
             if (memory.isNotEmpty()) "Relevant approved local memory:\n- " + memory.joinToString("\n- ") else "",
