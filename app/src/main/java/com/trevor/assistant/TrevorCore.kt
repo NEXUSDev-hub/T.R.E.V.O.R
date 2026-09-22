@@ -37,6 +37,11 @@ object TrevorCore {
         val aiTaskId = UUID.randomUUID().toString()
 
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
+        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled) {
+            TrevorBehaviorLearning.sync(context)
+            TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
+        }
+
         if (TrevorSettingsStore.load(context).usageIntelligenceEnabled &&
             (clean.contains("usage", true) || clean.contains("phone use", true) || clean.contains("usage pattern", true))
         ) {
