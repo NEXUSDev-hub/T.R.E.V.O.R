@@ -102,7 +102,7 @@ object TrevorProactiveDecisionEngine {
         context: Context,
         pending: List<TrevorTask>,
         recent: List<TrevorConversationMessage>,
-        routines: List<TrevorRoutineDiscovery.TrevorRoutineSuggestion>,
+        routines: List<TrevorRoutineSuggestion>,
         overdue: Int,
         dueSoon: Int,
         reason: String
