@@ -194,6 +194,9 @@ object TrevorBehaviorLearning {
             }
             while (sequence.size > MAX_SEQUENCE_LENGTH) sequence.removeAt(0)
 
+            // Part 3 discovery counts only newly completed suffixes. The previous
+            // implementation re-counted every older subsequence on every event,
+            // inflating observations for long-running sessions.
             routineUpdates += discoverRoutines(routines, sequence, timestamp)
 
             lastTimestamp = timestamp
@@ -266,7 +269,7 @@ object TrevorBehaviorLearning {
     /** Explicit approval gate; this does not execute anything. */
     fun approveRoutine(context: Context, sequence: List<String>): Boolean {
         val target = normalizeSequence(sequence)
-        if (target.size < 2) return false
+        if (target.size < 3) return false
 
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val routines = readRoutines(prefs)
@@ -279,7 +282,7 @@ object TrevorBehaviorLearning {
 
     fun revokeRoutineApproval(context: Context, sequence: List<String>): Boolean {
         val target = normalizeSequence(sequence)
-        if (target.size < 2) return false
+        if (target.size < 3) return false
 
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val routines = readRoutines(prefs)
@@ -343,26 +346,26 @@ object TrevorBehaviorLearning {
         val packages = sequence.map { it.first }
         var updates = 0
 
-        // Learn contiguous ordered subsequences from 3..6 steps.
+        // Count only suffixes ending at the newly observed app. Each real
+        // routine occurrence therefore contributes once to each matching length.
+        // This prevents A -> B -> C -> D from counting A -> B -> C twice.
         for (length in 3..min(MAX_SEQUENCE_LENGTH, packages.size)) {
-            for (start in 0..packages.size - length) {
-                val candidate = normalizeSequence(packages.subList(start, start + length))
-                if (candidate.size < 3) continue
+            val start = packages.size - length
+            val candidate = normalizeSequence(packages.subList(start, packages.size))
+            if (candidate.size != length) continue
 
-                val key = routineKey(candidate)
-                val old = existing[key]
-                val observations = (old?.observations ?: 0) + 1
+            val key = routineKey(candidate)
+            val old = existing[key]
+            val observations = (old?.observations ?: 0) + 1
 
-                // Keep early evidence locally, but expose it only after the minimum repetition threshold.
-                existing[key] = RoutineCandidate(
-                    sequence = candidate,
-                    observations = observations,
-                    lastSeen = now,
-                    confidence = confidence(observations, now),
-                    approved = old?.approved == true
-                )
-                updates++
-            }
+            existing[key] = RoutineCandidate(
+                sequence = candidate,
+                observations = observations,
+                lastSeen = now,
+                confidence = confidence(observations, now),
+                approved = old?.approved == true
+            )
+            updates++
         }
         return updates
     }
@@ -626,7 +629,7 @@ object TrevorBehaviorLearning {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             request
         )
     }
