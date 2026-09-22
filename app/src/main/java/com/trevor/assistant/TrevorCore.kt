@@ -136,10 +136,6 @@ object TrevorCore {
         attachment: TrevorAttachment?
     ): TrevorCoreResult {
         if (!aiEnabled) return TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
-        if (!TrevorAiBudget.canUse(context, taskId)) {
-            return TrevorCoreResult.Error("AI reasoning budget exhausted for this task. TREVOR will continue locally where possible.")
-        }
-
         TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
         val conversationId = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
             .getString("conversation_id", null)
