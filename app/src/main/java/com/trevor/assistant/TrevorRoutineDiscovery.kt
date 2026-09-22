@@ -20,6 +20,13 @@ object TrevorRoutineDiscovery {
      * ranked routine candidates. This never enables an automation by itself.
      */
     fun suggestions(context: Context): List<TrevorRoutineSuggestion> {
+        val settings = TrevorSettingsStore.load(context)
+        if (settings.usageIntelligenceEnabled && TrevorBehaviorLearning.hasUsageAccess(context)) {
+            // Keep discovery fresh when the UI/core asks for suggestions instead of waiting
+            // for the next 30-minute background sample.
+            TrevorBehaviorLearning.sync(context)
+            TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
+        }
         val current = TrevorDeviceContextLearning.snapshot(context)
         val contextPatterns = TrevorDeviceContextLearning.observations(context)
         val transitions = TrevorBehaviorLearning.transitions(context)
@@ -104,6 +111,9 @@ object TrevorRoutineDiscovery {
 
     fun approve(context: Context, sequence: List<String>): Boolean =
         TrevorBehaviorLearning.approveRoutine(context, sequence)
+
+    fun revoke(context: Context, sequence: List<String>): Boolean =
+        TrevorBehaviorLearning.revokeRoutineApproval(context, sequence)
 
     private fun contextSimilarity(
         current: TrevorDeviceContextLearning.ContextSnapshot,
