@@ -37,9 +37,16 @@ object TrevorCore {
         val aiTaskId = UUID.randomUUID().toString()
 
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
-        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled) {
+        val learningEnabled = TrevorSettingsStore.load(context).usageIntelligenceEnabled
+        if (learningEnabled) {
             TrevorBehaviorLearning.sync(context)
             TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
+        }
+
+        if (learningEnabled &&
+            (clean.contains("routine", true) || clean.contains("habit", true) || clean.contains("pattern", true))
+        ) {
+            return finish(TrevorCoreResult.Answer(TrevorRoutineDiscovery.summary(context)))
         }
 
         if (TrevorSettingsStore.load(context).usageIntelligenceEnabled &&
