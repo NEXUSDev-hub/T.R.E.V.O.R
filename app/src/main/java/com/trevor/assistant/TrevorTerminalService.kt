@@ -3,82 +3,109 @@ package com.trevor.assistant
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.util.UUID
 
+/**
+ * Real Android app-sandbox shell session.
+ * Uses the device's /system/bin/sh process; Android still constrains it to
+ * TREVOR's app UID/filesystem and it does not bypass Android permissions.
+ */
 object TrevorTerminalService {
-    private val allowed = setOf(
-        "help", "pwd", "ls", "whoami", "uname", "version", "status", "date",
-        "clear", "calc", "sci", "memory", "tasks", "providers", "identity",
-        "battery", "storage"
-    )
+    private const val MARKER_PREFIX = "__TREVOR_CMD_DONE__"
+    private var process: Process? = null
+    private var reader: BufferedReader? = null
+    private var writer: java.io.OutputStream? = null
+
+    @Synchronized
+    private fun ensureShell(context: Context) {
+        if (process?.isAlive == true && reader != null && writer != null) return
+        process?.destroy()
+        process = ProcessBuilder("/system/bin/sh")
+            .directory(context.filesDir)
+            .redirectErrorStream(true)
+            .start()
+        reader = BufferedReader(InputStreamReader(process!!.inputStream))
+        writer = process!!.outputStream
+        sendRaw("export HOME='" + context.filesDir.absolutePath + "'")
+        sendRaw("export PATH='/system/bin:/system/xbin:\\$PATH'")
+    }
 
     suspend fun execute(context: Context, command: String, state: TrevorState): String =
         withContext(Dispatchers.IO) {
             val clean = command.trim()
-            val verb = clean.substringBefore(' ').lowercase()
             if (clean.isBlank()) return@withContext ""
-            if (verb !in allowed) {
-                return@withContext "TREVOR TERMINAL\nCommand not available in the controlled terminal.\nType 'help' for available commands."
+
+            if (clean.equals("help", true)) {
+                return@withContext """
+                    TREVOR TERMINAL
+                    --------------
+                    Real /system/bin/sh session inside the Android app sandbox.
+                    help       Show terminal help
+                    exit       Close the current shell session
+                    pwd        Print working directory
+                    clear      Clear TREVOR terminal output
+                    status     Show TREVOR runtime state
+                    Any other command is passed to the native shell.
+                    Pipes, redirection, environment variables and shell syntax
+                    are supported by Android's available shell/user-space tools.
+                """.trimIndent()
             }
 
-            when (verb) {
-                "help" -> """
-                    TREVOR TERMINAL
-                    ----------------
-                    help       Show commands
-                    pwd        Show TREVOR app workspace
-                    ls         List app workspace entries
-                    whoami     Show TREVOR identity
-                    identity   Show immutable TREVOR creator identity
-                    uname      Show Android runtime
-                    version    Show TREVOR version
-                    status     Show current mode/orb/AI/file/request state
-                    date       Show device time
-                    battery    Show battery status
-                    storage    Show app storage information
-                    memory     Show recent approved local memories
-                    tasks      Show stored task count/details
-                    providers  Show configured free-provider status
-                    calc EXPR  Offline scientific calculation
-                    sci EXPR   Alias for calc
-                    clear      Clear terminal output
-                    """.trimIndent()
+            if (clean.equals("exit", true)) {
+                close()
+                return@withContext "Shell session closed."
+            }
 
-                "pwd" -> context.filesDir.absolutePath
-                "ls" -> context.filesDir.listFiles()?.joinToString("\n") { it.name }.ifNullOrEmpty("(empty)")
-                "whoami", "identity" -> TrevorIdentity.NAME + "\n" + TrevorIdentity.FULL_NAME + "\nCreated by " + TrevorIdentity.CREATORS
-                "uname" -> "Android " + android.os.Build.VERSION.RELEASE + " (" + android.os.Build.MODEL + ")"
-                "version" -> TrevorVersion.label(context)
-                "status" -> "mode=" + state.currentMode + "\norb=" + state.orbState + "\nai=" + state.aiState +
-                    "\nfile=" + state.fileState + "\nrequest=" + state.requestState
-                "date" -> SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.US).format(Date())
-                "battery" -> {
-                    val bm = context.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
-                    "battery=" + bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) + "%"
+            if (clean.equals("status", true)) {
+                return@withContext "mode=" + state.currentMode +
+                    "\norb=" + state.orbState +
+                    "\nai=" + state.aiState +
+                    "\nfile=" + state.fileState +
+                    "\nrequest=" + state.requestState
+            }
+
+            synchronized(this@TrevorTerminalService) {
+                ensureShell(context)
+                val marker = MARKER_PREFIX + UUID.randomUUID().toString().replace("-", "")
+                sendRaw(clean)
+                sendRaw("printf '\\n" + marker + ":$?\\n'")
+                val output = StringBuilder()
+                while (true) {
+                    val line = reader?.readLine() ?: break
+                    if (line.startsWith(marker + ":")) {
+                        val code = line.substringAfter(':').toIntOrNull() ?: 0
+                        if (code != 0) output.append("\n[exit ").append(code).append(']')
+                        break
+                    }
+                    if (output.isNotEmpty()) output.append('\n')
+                    output.append(line)
+                    if (output.length > 64_000) {
+                        output.append("\n[output truncated at 64 KB]")
+                        break
+                    }
                 }
-                "storage" -> {
-                    val stat = android.os.StatFs(context.filesDir.absolutePath)
-                    val free = stat.availableBytes / (1024 * 1024)
-                    val total = stat.totalBytes / (1024 * 1024)
-                    "app filesystem: " + free + " MB free / " + total + " MB total"
-                }
-                "memory" -> TrevorPersistentMemory.longTermMemory(context)
-                    .takeLast(10).joinToString("\n") { "• " + it.content }.ifNullOrEmpty("(no approved long-term memories)")
-                "tasks" -> "Task storage is available through TREVOR's task/memory system. Use the task controls in the main UI."
-                "providers" -> TrevorProviderRegistry.providers.joinToString("\n") { spec ->
-                    spec.displayName + " • genuinely free tier • models=" + spec.models.joinToString(",") { it.id }
-                }
-                "calc", "sci" -> {
-                    val expr = clean.substringAfter(' ', "").trim()
-                    if (expr.isBlank()) "Usage: calc 2*(3+4) or sci sin(30)" else TrevorScientificCalculator.evaluate(expr)
-                }
-                "clear" -> ""
-                else -> ""
+                if (output.isEmpty()) "(command completed with no output)" else output.toString()
             }
         }
 
-    private fun String?.ifNullOrEmpty(fallback: String): String =
-        if (this.isNullOrEmpty()) fallback else this
+    @Synchronized
+    private fun sendRaw(command: String) {
+        writer?.apply {
+            write((command + "\n").toByteArray(Charsets.UTF_8))
+            flush()
+        }
+    }
+
+    @Synchronized
+    fun close() {
+        runCatching { writer?.write("exit\n".toByteArray(Charsets.UTF_8)); writer?.flush() }
+        runCatching { process?.destroy() }
+        reader?.close()
+        writer?.close()
+        process = null
+        reader = null
+        writer = null
+    }
 }
