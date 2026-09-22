@@ -3,7 +3,6 @@ package com.trevor.assistant
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Build
 import android.provider.Settings
 import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
@@ -86,19 +85,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        if (isFinishing && Settings.canDrawOverlays(this)) {
-            val intent = Intent(this, TrevorProactiveService::class.java).setAction(TrevorProactiveService.ACTION_SHOW_OVERLAY)
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         TrevorBackgroundScheduler.ensureScheduled(this)
-        val backgroundIntent = Intent(this, TrevorProactiveService::class.java)
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(backgroundIntent) else startService(backgroundIntent)
         window.statusBarColor = android.graphics.Color.rgb(5, 15, 26)
         window.navigationBarColor = android.graphics.Color.rgb(5, 15, 26)
         window.decorView.systemUiVisibility = 0
