@@ -91,7 +91,7 @@ object TrevorAutomationEngine {
         validate(plan).getOrThrow()
         saveTask(context, TrevorAutomationTask(plan.id, plan.title, plan, TrevorAutomationTaskState.QUEUED, 0, 0))
         val data = Data.Builder().putString("task_id", plan.id).build()
-        val request = OneTimeWorkRequestBuilder<TrevorAutomationWorker>().setInputData(data).build()
+        val request = OneTimeWorkRequestBuilder<TrevorAutomationWorker>().setInputData(data).addTag("trevor-task-${plan.id}").build()
         WorkManager.getInstance(context).enqueue(request)
         return request.id
     }
@@ -102,6 +102,7 @@ object TrevorAutomationEngine {
             ?: TrevorAutomationTask(plan.id, plan.title, plan, TrevorAutomationTaskState.RUNNING, 0, 0)
 
         while (task.currentStep < plan.steps.size) {
+            if (task.state == TrevorAutomationTaskState.CANCELLED) return "TREVOR task was cancelled."
             task = task.copy(state = TrevorAutomationTaskState.RUNNING)
             saveTask(context, task)
             val step = plan.steps[task.currentStep]
@@ -115,7 +116,7 @@ object TrevorAutomationEngine {
                     result = candidate
                     return@repeat
                 }
-                if (it < MAX_RETRIES) task = task.copy(state = TrevorAutomationTaskState.RECOVERING, attempts = attempts)
+                if (it < MAX_RETRIES) { task = task.copy(state = TrevorAutomationTaskState.RECOVERING, attempts = attempts); saveTask(context, task) }
             }
 
             if (result == null) {
@@ -136,7 +137,11 @@ object TrevorAutomationEngine {
     }
 
     fun cancel(context: Context, taskId: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(taskId).apply()
+        val task = loadTask(context, taskId)
+        if (task != null) {
+            saveTask(context, task.copy(state = TrevorAutomationTaskState.CANCELLED))
+        }
+        WorkManager.getInstance(context).cancelAllWorkByTag("trevor-task-$taskId")
     }
 
     fun loadTask(context: Context, taskId: String): TrevorAutomationTask? {
