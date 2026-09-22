@@ -8,7 +8,6 @@ import android.content.res.Configuration
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
-import android.os.Build
 import android.os.PowerManager
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,6 +31,7 @@ object TrevorDeviceContextLearning {
         val weekday: Int,
         val batteryPercent: Int,
         val charging: Boolean,
+        val batteryBucket: Int,
         val network: String,
         val metered: Boolean,
         val screenInteractive: Boolean,
@@ -40,9 +40,11 @@ object TrevorDeviceContextLearning {
     )
 
     data class ContextObservation(
+        val packageName: String,
         val hourBucket: Int,
         val weekday: Int,
         val charging: Boolean,
+        val batteryBucket: Int,
         val network: String,
         val metered: Boolean,
         val screenInteractive: Boolean,
@@ -122,6 +124,7 @@ object TrevorDeviceContextLearning {
     fun record(context: Context, packageName: String? = null): ContextObservation {
         val snapshot = snapshot(context)
         val bucketedBattery = if (snapshot.batteryPercent < 0) -1 else (snapshot.batteryPercent / 10) * 10
+        val observedPackage = packageName?.takeIf { it.isNotBlank() } ?: "*"
         val key = buildKey(snapshot, packageName)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val observations = read(prefs).toMutableMap()
@@ -129,9 +132,11 @@ object TrevorDeviceContextLearning {
         val count = (old?.observations ?: 0) + 1
         val now = System.currentTimeMillis()
         val updated = ContextObservation(
+            observedPackage,
             snapshot.hourBucket,
             snapshot.weekday,
             snapshot.charging,
+            bucketedBattery,
             snapshot.network,
             snapshot.metered,
             snapshot.screenInteractive,
@@ -173,9 +178,11 @@ object TrevorDeviceContextLearning {
     private fun buildKey(snapshot: ContextSnapshot, packageName: String?): String =
         listOf(
             packageName.orEmpty(),
+            observedPackage,
             snapshot.hourBucket,
             snapshot.weekday,
             snapshot.charging,
+            bucketedBattery,
             snapshot.network,
             snapshot.metered,
             snapshot.screenInteractive,
@@ -197,7 +204,7 @@ object TrevorDeviceContextLearning {
             .take(MAX_OBSERVATIONS)
             .associateBy {
                 listOf(
-                    it.hourBucket, it.weekday, it.charging, it.network, it.metered,
+                    it.packageName, it.hourBucket, it.weekday, it.charging, it.batteryBucket, it.network, it.metered,
                     it.screenInteractive, it.bluetoothEnabled ?: "UNKNOWN", it.orientation
                 ).joinToString("|")
             }
@@ -210,9 +217,11 @@ object TrevorDeviceContextLearning {
         for (i in 0 until array.length()) {
             val o = array.optJSONObject(i) ?: continue
             val item = ContextObservation(
+                o.optString("packageName", "*"),
                 o.optInt("hourBucket"),
                 o.optInt("weekday"),
                 o.optBoolean("charging"),
+                o.optInt("batteryBucket", -1),
                 o.optString("network", "OFFLINE"),
                 o.optBoolean("metered"),
                 o.optBoolean("screenInteractive"),
@@ -229,7 +238,7 @@ object TrevorDeviceContextLearning {
 
     private fun buildReadKey(item: ContextObservation): String =
         listOf(
-            item.hourBucket, item.weekday, item.charging, item.network, item.metered,
+            item.packageName, item.hourBucket, item.weekday, item.charging, item.batteryBucket, item.network, item.metered,
             item.screenInteractive, item.bluetoothEnabled ?: "UNKNOWN", item.orientation
         ).joinToString("|")
 
@@ -237,9 +246,11 @@ object TrevorDeviceContextLearning {
         val array = JSONArray()
         values.values.forEach {
             val objectValue = JSONObject()
+                .put("packageName", it.packageName)
                 .put("hourBucket", it.hourBucket)
                 .put("weekday", it.weekday)
                 .put("charging", it.charging)
+                .put("batteryBucket", it.batteryBucket)
                 .put("network", it.network)
                 .put("metered", it.metered)
                 .put("screenInteractive", it.screenInteractive)
