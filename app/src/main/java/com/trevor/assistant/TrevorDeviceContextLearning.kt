@@ -31,7 +31,6 @@ object TrevorDeviceContextLearning {
         val weekday: Int,
         val batteryPercent: Int,
         val charging: Boolean,
-        val batteryBucket: Int,
         val network: String,
         val metered: Boolean,
         val screenInteractive: Boolean,
@@ -175,20 +174,21 @@ object TrevorDeviceContextLearning {
         }
     }
 
-    private fun buildKey(snapshot: ContextSnapshot, packageName: String?): String =
-        listOf(
-            packageName.orEmpty(),
-            observedPackage,
+    private fun buildKey(snapshot: ContextSnapshot, packageName: String?): String {
+        val batteryBucket = if (snapshot.batteryPercent < 0) -1 else (snapshot.batteryPercent / 10) * 10
+        return listOf(
+            packageName?.takeIf { it.isNotBlank() } ?: "*",
             snapshot.hourBucket,
             snapshot.weekday,
             snapshot.charging,
-            bucketedBattery,
+            batteryBucket,
             snapshot.network,
             snapshot.metered,
             snapshot.screenInteractive,
             snapshot.bluetoothEnabled ?: "UNKNOWN",
             snapshot.orientation
         ).joinToString("|")
+    }
 
     private fun confidence(observations: Int, lastSeen: Long): Double {
         val ageDays = ((System.currentTimeMillis() - lastSeen).coerceAtLeast(0L) / 86_400_000L).toDouble()
