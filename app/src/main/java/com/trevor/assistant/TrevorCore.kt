@@ -136,7 +136,7 @@ object TrevorCore {
         attachment: TrevorAttachment?
     ): TrevorCoreResult {
         if (!aiEnabled) return TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
-        if (!TrevorAiBudget.reserve(context, taskId)) {
+        if (!TrevorAiBudget.canUse(context, taskId)) {
             return TrevorCoreResult.Error("AI reasoning budget exhausted for this task. TREVOR will continue locally where possible.")
         }
 
