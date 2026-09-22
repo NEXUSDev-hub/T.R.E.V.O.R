@@ -176,9 +176,13 @@ object TrevorDeviceContextLearning {
         return record(context, foregroundPackage)
     }
 
-    fun observations(context: Context): List<ContextObservation> =
-        read(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
-            .values.sortedByDescending { it.confidence }
+    fun observations(context: Context): List<ContextObservation> {
+        val now = System.currentTimeMillis()
+        return read(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
+            .values
+            .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
+            .sortedByDescending { it.confidence }
+    }
 
     fun summary(context: Context): String {
         val current = snapshot(context)
@@ -216,8 +220,8 @@ object TrevorDeviceContextLearning {
         ).joinToString("|")
     }
 
-    private fun confidence(observations: Int, lastSeen: Long): Double {
-        val ageDays = ((System.currentTimeMillis() - lastSeen).coerceAtLeast(0L) / 86_400_000L).toDouble()
+    private fun confidence(observations: Int, lastSeen: Long, now: Long = System.currentTimeMillis()): Double {
+        val ageDays = ((now - lastSeen).coerceAtLeast(0L) / 86_400_000L).toDouble()
         val recency = 1.0 / (1.0 + ageDays / 14.0)
         val repetition = min(1.0, observations / 10.0)
         return (0.25 + 0.75 * repetition) * recency
@@ -226,7 +230,7 @@ object TrevorDeviceContextLearning {
     private fun prune(input: Map<String, ContextObservation>, now: Long): Map<String, ContextObservation> =
         input.values
             .filter { now - it.lastSeen <= RETENTION_DAYS * 86_400_000L }
-            .sortedByDescending { it.confidence }
+            .sortedByDescending { confidence(it.observations, it.lastSeen, now) }
             .take(MAX_OBSERVATIONS)
             .associateBy {
                 listOf(
