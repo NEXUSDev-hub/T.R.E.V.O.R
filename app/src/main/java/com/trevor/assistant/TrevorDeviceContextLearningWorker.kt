@@ -45,6 +45,7 @@ object TrevorDeviceContextLearningScheduler {
         val workManager = WorkManager.getInstance(context)
         if (!enabled) {
             workManager.cancelUniqueWork(WORK_NAME)
+            workManager.cancelUniqueWork(INITIAL_WORK_NAME)
             return
         }
 
@@ -55,7 +56,7 @@ object TrevorDeviceContextLearningScheduler {
 
         workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             request
         )
 
@@ -67,10 +68,9 @@ object TrevorDeviceContextLearningScheduler {
                 .build()
             workManager.enqueueUniqueWork(
                 INITIAL_WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 initialRequest
             )
         }
-
     }
 }
