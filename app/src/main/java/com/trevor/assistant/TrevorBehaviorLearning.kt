@@ -463,13 +463,23 @@ object TrevorBehaviorLearning {
     private fun pruneRoutines(
         input: Map<String, RoutineCandidate>,
         now: Long
-    ): Map<String, RoutineCandidate> =
-        input.values
-            .filter { !expired(it.lastSeen, now) }
+    ): Map<String, RoutineCandidate> {
+        // Approved routines are user decisions, so ordinary observation retention
+        // must not silently delete them just because they have gone quiet.
+        val approved = input.values
+            .filter { it.approved }
             .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
             .sortedByDescending { it.confidence }
+
+        val active = input.values
+            .filter { !it.approved && !expired(it.lastSeen, now) }
+            .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
+            .sortedByDescending { it.confidence }
+
+        return (approved + active)
             .take(MAX_ROUTINES)
             .associateBy { routineKey(it.sequence) }
+    }
 
     private fun readTransitions(
         prefs: android.content.SharedPreferences
