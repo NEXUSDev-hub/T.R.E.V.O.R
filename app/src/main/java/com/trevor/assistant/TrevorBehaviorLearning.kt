@@ -116,7 +116,7 @@ object TrevorBehaviorLearning {
 
     fun routineCandidates(context: Context): List<RoutineCandidate> =
         readRoutines(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
-            .filterNot { it.approved }
+            .values.filterNot { it.approved }
             .sortedByDescending { it.confidence }
 
     fun approveRoutine(context: Context, sequence: List<String>): Boolean {
