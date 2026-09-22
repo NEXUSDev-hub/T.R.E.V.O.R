@@ -37,7 +37,7 @@ object TrevorAndroidActions {
         if (intent.resolveActivity(context.packageManager) == null) return TrevorAndroidActionResult(key, false, false, "No Android handler is installed for this action.")
         return runCatching {
             context.startActivity(intent)
-            TrevorAndroidActionResult(key, true, true, "Android action dispatched and verified: " + key + " settings opened.")
+            TrevorAndroidActionResult(key, true, false, "Android action dispatched to the system handler: " + key + " settings.")
         }.getOrElse { e ->
             TrevorAndroidActionResult(key, false, false, "Android action failed: " + (e.message ?: "unknown error"))
         }
