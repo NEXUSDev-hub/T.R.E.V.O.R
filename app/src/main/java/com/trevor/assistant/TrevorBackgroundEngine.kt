@@ -230,6 +230,7 @@ class TrevorProactiveWorker(appContext: Context, params: WorkerParameters) : Cor
             recent,
             actionable
         )
+        if (message.trim().equals("[NOOP]", ignoreCase = true)) return Result.success()
 
         val delivered = TrevorNotificationCenter.post(
             applicationContext,

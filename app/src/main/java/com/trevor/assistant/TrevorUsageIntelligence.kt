@@ -14,7 +14,7 @@ object TrevorUsageIntelligence {
     fun hasAccess(context: Context): Boolean {
         val manager = context.getSystemService(UsageStatsManager::class.java) ?: return false
         val now = System.currentTimeMillis()
-        return manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 86400000L, now).any { it.totalTimeInForeground > 0L }
+        return manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 86400000L, now).any { it.getTotalTimeInForeground() > 0L }
     }
     fun analyze(context: Context, days: Int = 7): TrevorUsageAnalysis {
         if (!hasAccess(context)) return TrevorUsageAnalysis(false, "Usage Access is not enabled.", emptyList())
@@ -22,10 +22,10 @@ object TrevorUsageIntelligence {
         val safeDays = days.coerceIn(1, 30)
         val end = System.currentTimeMillis()
         val start = end - safeDays * 86400000L
-        val stats = manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end).filter { it.totalTimeInForeground > 0L }
-        val total = stats.sumOf { it.totalTimeInForeground }.coerceAtLeast(1L)
+        val stats = manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end).filter { it.getTotalTimeInForeground() > 0L }
+        val total = stats.sumOf { it.getTotalTimeInForeground() }.coerceAtLeast(1L)
         val top = stats.groupBy { it.packageName }.map { entry ->
-            val ms = entry.value.sumOf { it.totalTimeInForeground }
+            val ms = entry.value.sumOf { it.getTotalTimeInForeground() }
             TrevorUsagePattern(entry.key, (ms / 60000L).toInt(), ((ms.toDouble() / total) * 100.0).roundToInt())
         }.sortedByDescending { it.minutes }.take(10)
         val peak = stats.groupBy { Calendar.getInstance().apply { timeInMillis = it.lastTimeUsed }.get(Calendar.HOUR_OF_DAY) }
