@@ -35,6 +35,7 @@ object TrevorBehaviorLearning {
     private const val LAST_SYNC = "last_usage_sync"
     private const val LAST_EVENT_TIME = "last_event_time"
     private const val LAST_EVENT_PACKAGE = "last_event_package"
+    private const val LAST_SEQUENCE = "last_sequence"
 
     private const val MAX_TRANSITIONS = 200
     private const val MAX_SESSIONS = 160
@@ -124,9 +125,14 @@ object TrevorBehaviorLearning {
         var sessionUpdates = 0
         var routineUpdates = 0
 
-        val sequence = ArrayList<Pair<String, Long>>(MAX_SEQUENCE_LENGTH)
-        var lastTimestamp = 0L
-        var lastPackage = ""
+        val sequence = readSequence(prefs)
+        var lastTimestamp = sequence.lastOrNull()?.second ?: 0L
+        var lastPackage = sequence.lastOrNull()?.first.orEmpty()
+        if (lastTimestamp > 0L && now - lastTimestamp > SESSION_GAP_MS) {
+            sequence.clear()
+            lastTimestamp = 0L
+            lastPackage = ""
+        }
 
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
@@ -200,6 +206,7 @@ object TrevorBehaviorLearning {
         writeTransitions(prefs, pruneTransitions(transitions, now))
         writeSessions(prefs, pruneSessions(sessions, now))
         writeRoutines(prefs, pruneRoutines(routines, now))
+        writeSequence(prefs, sequence)
 
         prefs.edit()
             .putLong(LAST_SYNC, now)
@@ -238,7 +245,11 @@ object TrevorBehaviorLearning {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         return readRoutines(prefs).values
-            .filter { !it.approved && !expired(it.lastSeen, now) }
+            .filter {
+                !it.approved &&
+                    it.observations >= ROUTINE_MIN_OBSERVATIONS &&
+                    !expired(it.lastSeen, now)
+            }
             .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
             .sortedByDescending { it.confidence }
     }
@@ -342,9 +353,7 @@ object TrevorBehaviorLearning {
                 val old = existing[key]
                 val observations = (old?.observations ?: 0) + 1
 
-                // One-off guesses stay internal and never become candidates.
-                if (old == null && observations < ROUTINE_MIN_OBSERVATIONS) continue
-
+                // Keep early evidence locally, but expose it only after the minimum repetition threshold.
                 existing[key] = RoutineCandidate(
                     sequence = candidate,
                     observations = observations,
@@ -356,6 +365,38 @@ object TrevorBehaviorLearning {
             }
         }
         return updates
+    }
+
+    private fun readSequence(
+        prefs: android.content.SharedPreferences
+    ): ArrayList<Pair<String, Long>> {
+        val array = runCatching {
+            JSONArray(prefs.getString(LAST_SEQUENCE, "[]") ?: "[]")
+        }.getOrDefault(JSONArray())
+        val result = ArrayList<Pair<String, Long>>(MAX_SEQUENCE_LENGTH)
+        for (i in 0 until array.length()) {
+            val o = array.optJSONObject(i) ?: continue
+            val pkg = o.optString("package").trim()
+            val timestamp = o.optLong("time")
+            if (pkg.isNotBlank() && timestamp > 0L) result += pkg to timestamp
+        }
+        while (result.size > MAX_SEQUENCE_LENGTH) result.removeAt(0)
+        return result
+    }
+
+    private fun writeSequence(
+        prefs: android.content.SharedPreferences,
+        sequence: List<Pair<String, Long>>
+    ) {
+        val array = JSONArray()
+        sequence.takeLast(MAX_SEQUENCE_LENGTH).forEach { (pkg, timestamp) ->
+            array.put(
+                JSONObject()
+                    .put("package", pkg)
+                    .put("time", timestamp)
+            )
+        }
+        prefs.edit().putString(LAST_SEQUENCE, array.toString()).apply()
     }
 
     private fun normalizeSequence(sequence: List<String>): List<String> {
