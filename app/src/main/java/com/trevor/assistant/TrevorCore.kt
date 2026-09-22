@@ -36,10 +36,19 @@ object TrevorCore {
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
         val aiTaskId = UUID.randomUUID().toString()
 
-        val localAnswer = TrevorLocalIntelligence.answer(context, clean)\n        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled && (clean.contains("usage", true) || clean.contains("phone use", true) || clean.contains("usage pattern", true))) {\n            return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))\n        }\n        val automation = TrevorAutomationEngine.plan(clean)\n        if (automation != null) return finish(TrevorCoreResult.Answer(TrevorAutomationEngine.execute(context, automation)))
+        val localAnswer = TrevorLocalIntelligence.answer(context, clean)
+        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled &&
+            (clean.contains("usage", true) || clean.contains("phone use", true) || clean.contains("usage pattern", true))
+        ) {
+            return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
+        }
+        val automation = TrevorAutomationEngine.plan(clean)
+        if (automation != null) {
+            return finish(TrevorCoreResult.Answer(TrevorAutomationEngine.execute(context, automation)))
+        }
         if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
 
-        val remind = Regex("""^remind me in\\s+(\\d+)\\s+(second|seconds|minute|minutes|hour|hours)\\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)
+        val remind = Regex("""^remind me in\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours)\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)
         if (remind != null) {
             val amount = remind.groupValues[1].toLong()
             val unit = remind.groupValues[2].lowercase()
@@ -53,7 +62,7 @@ object TrevorCore {
             return finish(TrevorCoreResult.Answer("Scheduled locally: $title"))
         }
 
-        val remember = Regex("""^remember\\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
+        val remember = Regex("""^remember\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
         if (remember != null) {
             TrevorPersistentMemory.saveLongTermMemory(context, remember)
             return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
@@ -156,7 +165,7 @@ object TrevorCore {
         // Prefer memories that overlap with the current request instead of dumping the whole
         // long-term memory store into every API call.
         val queryTerms = input.lowercase()
-            .split(Regex("""\\W+"""))
+            .split(Regex("""\W+"""))
             .filter { it.length > 2 }
             .distinct()
             .take(24)
