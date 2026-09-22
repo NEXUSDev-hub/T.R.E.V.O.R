@@ -56,7 +56,18 @@ object TrevorCore {
         ) {
             return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
         }
-        val automation = TrevorAutomationEngine.plan(clean)
+        val resolvedMode = TrevorModeRouter.route(mode, clean)
+        val smartIntent = TrevorSmartCore.classify(
+            input = clean,
+            mode = resolvedMode,
+            attachmentPresent = attachment != null
+        )
+
+        val automation = if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION) {
+            TrevorAutomationEngine.plan(clean)
+        } else {
+            null
+        }
         if (automation != null) {
             val automationResult = withContext(Dispatchers.IO) {
                 TrevorAutomationEngine.execute(context, automation)
@@ -88,12 +99,6 @@ object TrevorCore {
         val androidAction = TrevorAndroidActions.tryDispatch(context, clean)
         if (androidAction != null) return finish(TrevorCoreResult.Answer(androidAction.detail))
 
-        val resolvedMode = TrevorModeRouter.route(mode, clean)
-        val smartIntent = TrevorSmartCore.classify(
-            input = clean,
-            mode = resolvedMode,
-            attachmentPresent = attachment != null
-        )
         if (resolvedMode == TrevorMode.PROJECT) {
             val projectId = prefs.getString("project_id", "default") ?: "default"
             TrevorPersistentMemory.saveProjectMemory(context, projectId, clean)
