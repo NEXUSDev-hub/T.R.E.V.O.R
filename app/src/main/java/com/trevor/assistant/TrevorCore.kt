@@ -89,6 +89,11 @@ object TrevorCore {
         if (androidAction != null) return finish(TrevorCoreResult.Answer(androidAction.detail))
 
         val resolvedMode = TrevorModeRouter.route(mode, clean)
+        val smartIntent = TrevorSmartCore.classify(
+            input = clean,
+            mode = resolvedMode,
+            attachmentPresent = attachment != null
+        )
         if (resolvedMode == TrevorMode.PROJECT) {
             val projectId = prefs.getString("project_id", "default") ?: "default"
             TrevorPersistentMemory.saveProjectMemory(context, projectId, clean)
@@ -117,15 +122,15 @@ object TrevorCore {
             return finish(TrevorCoreResult.Answer(result))
         }
 
-        val prompt = buildPrompt(context, clean, resolvedMode, conciseResponses, technicalDetail, attachment)
+        val prompt = buildPrompt(context, clean, resolvedMode, conciseResponses, technicalDetail, attachment, smartIntent)
         val result = if (offlineFirst && attachment == null && resolvedMode == TrevorMode.NORMAL) {
             when (val local = TrevorLocalEngine.processCommand(clean)) {
                 is TrevorEngineResult.Answer -> TrevorCoreResult.Answer(local.text)
                 is TrevorEngineResult.Error -> TrevorCoreResult.Error(local.message)
-                is TrevorEngineResult.NeedAI -> requestAi(context, aiTaskId, local.prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
+                is TrevorEngineResult.NeedAI -> requestAi(context, aiTaskId, local.prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment, smartIntent)
             }
         } else {
-            val aiResult = requestAi(context, aiTaskId, prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment)
+            val aiResult = requestAi(context, aiTaskId, prompt, resolvedMode, aiEnabled, geminiEnabled, conciseResponses, technicalDetail, attachment, smartIntent)
             if (aiResult is TrevorCoreResult.Answer) aiResult
             else if (offlineFirst && attachment == null) {
                 when (val local = TrevorLocalEngine.processCommand(clean)) {
@@ -150,7 +155,8 @@ object TrevorCore {
         geminiEnabled: Boolean,
         conciseResponses: Boolean,
         technicalDetail: Boolean,
-        attachment: TrevorAttachment?
+        attachment: TrevorAttachment?,
+        smartIntent: TrevorSmartCore.Intent
     ): TrevorCoreResult {
         if (!aiEnabled) return TrevorCoreResult.Error("AI is disabled. Enable AI in Settings.")
         TrevorStateStore.update { it.copy(aiState = TrevorAiState.PROCESSING) }
@@ -234,7 +240,8 @@ object TrevorCore {
         val result = TrevorMultiProviderRouter.ask(
             context = context.applicationContext,
             prompt = enriched,
-            forceAdvanced = TrevorAiRouting.isComplex(enriched) ||
+            forceAdvanced = smartIntent.needsAdvancedModel ||
+                TrevorAiRouting.isComplex(enriched) ||
                 attachment != null ||
                 mode == TrevorMode.ANALYSE ||
                 mode == TrevorMode.PROJECT
@@ -251,7 +258,8 @@ object TrevorCore {
         mode: TrevorMode,
         conciseResponses: Boolean,
         technicalDetail: Boolean,
-        attachment: TrevorAttachment?
+        attachment: TrevorAttachment?,
+        smartIntent: TrevorSmartCore.Intent
     ): String {
         val modeInstruction = when (mode) {
             TrevorMode.NORMAL -> "Act as a general personal assistant."
@@ -270,6 +278,7 @@ object TrevorCore {
             "Mode: " + mode.name,
             if (memory.isNotEmpty()) "Relevant approved local memory:\n- " + memory.joinToString("\n- ") else "",
             modeInstruction,
+            TrevorSmartCore.instruction(input, mode, attachment != null),
             style,
             technical,
             attachment?.let { "Attached file: " + it.name + " (" + it.mimeType + "). Use it as authoritative user-provided context." } ?: "",
