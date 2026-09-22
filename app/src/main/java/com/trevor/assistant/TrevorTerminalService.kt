@@ -70,7 +70,7 @@ object TrevorTerminalService {
                 ensureShell(context)
                 val marker = MARKER_PREFIX + UUID.randomUUID().toString().replace("-", "")
                 sendRaw(clean)
-                sendRaw("printf '\\n" + marker + ":$?\\n'")
+                sendRaw("printf '\\n" + marker + ":\$?\\n'")
                 val output = StringBuilder()
                 while (true) {
                     val line = reader?.readLine() ?: break
