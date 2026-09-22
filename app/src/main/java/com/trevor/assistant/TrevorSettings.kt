@@ -20,9 +20,7 @@ enum class TrevorPersonality(val label: String, val description: String) {
 data class TrevorSettings(
     val aiEnabled: Boolean = true,
     val geminiEnabled: Boolean = true,
-    val autoProviderSwitch: Boolean = true,
-    val preferredProvider: TrevorProviderId = TrevorProviderId.GEMINI,
-    val selectedModelId: String? = null,
+    val usageIntelligenceEnabled: Boolean = true,
     val proactiveNotifications: Boolean = true,
     val quietHours: Boolean = false,
     val orbEnabled: Boolean = true,
@@ -50,9 +48,7 @@ object TrevorSettingsStore {
         return TrevorSettings(
             aiEnabled = p.getBoolean("aiEnabled", true),
             geminiEnabled = p.getBoolean("geminiEnabled", true),
-            autoProviderSwitch = p.getBoolean("autoProviderSwitch", true),
-            preferredProvider = runCatching { TrevorProviderId.valueOf(p.getString("preferredProvider", TrevorProviderId.GEMINI.name) ?: TrevorProviderId.GEMINI.name) }.getOrDefault(TrevorProviderId.GEMINI),
-            selectedModelId = p.getString("selectedModelId", null),
+            usageIntelligenceEnabled = p.getBoolean("usageIntelligenceEnabled", true),
             proactiveNotifications = p.getBoolean("proactiveNotifications", true),
             quietHours = p.getBoolean("quietHours", false),
             orbEnabled = p.getBoolean("orbEnabled", true),
@@ -79,9 +75,7 @@ object TrevorSettingsStore {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean("aiEnabled", s.aiEnabled)
             .putBoolean("geminiEnabled", s.geminiEnabled)
-            .putBoolean("autoProviderSwitch", s.autoProviderSwitch)
-            .putString("preferredProvider", s.preferredProvider.name)
-            .putString("selectedModelId", s.selectedModelId)
+            .putBoolean("usageIntelligenceEnabled", s.usageIntelligenceEnabled)
             .putBoolean("proactiveNotifications", s.proactiveNotifications)
             .putBoolean("quietHours", s.quietHours)
             .putBoolean("orbEnabled", s.orbEnabled)
