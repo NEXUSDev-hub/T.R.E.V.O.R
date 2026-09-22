@@ -29,6 +29,9 @@ object TrevorDeviceContextLearning {
     private const val OBSERVATIONS = "context_observations"
     private const val MAX_OBSERVATIONS = 240
     private const val RETENTION_DAYS = 45
+    private const val USAGE_LOOKBACK_MINUTES = 40L
+
+    private val storageLock = Any()
 
     data class ContextSnapshot(
         val hourBucket: Int,
@@ -130,11 +133,13 @@ object TrevorDeviceContextLearning {
         val observedPackage = packageName?.takeIf { it.isNotBlank() } ?: "*"
         val key = buildKey(snapshot, packageName)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val observations = read(prefs).toMutableMap()
-        val old = observations[key]
-        val count = (old?.observations ?: 0) + 1
         val now = System.currentTimeMillis()
-        val updated = ContextObservation(
+        val updated: ContextObservation
+        synchronized(storageLock) {
+            val observations = read(prefs).toMutableMap()
+            val old = observations[key]
+            val count = (old?.observations ?: 0) + 1
+            updated = ContextObservation(
             observedPackage,
             snapshot.hourBucket,
             snapshot.weekday,
@@ -148,9 +153,10 @@ object TrevorDeviceContextLearning {
             count,
             now,
             confidence(count, now)
-        )
-        observations[key] = updated
-        write(prefs, prune(observations, now))
+            )
+            observations[key] = updated
+            write(prefs, prune(observations, now))
+        }
         return updated
     }
 
@@ -169,7 +175,10 @@ object TrevorDeviceContextLearning {
      * Records context only when Usage Access can identify a real foreground app.
      * Returning null prevents meaningless "*" observations from being learned.
      */
-    fun recordCurrentForegroundContext(context: Context): ContextObservation? {
+    fun recordCurrentForegroundContext(
+        context: Context,
+        lookbackMinutes: Long = USAGE_LOOKBACK_MINUTES
+    ): ContextObservation? {
         if (!hasUsageAccess(context)) return null
 
         val manager = context.getSystemService(UsageStatsManager::class.java)
@@ -177,7 +186,7 @@ object TrevorDeviceContextLearning {
         var foregroundPackage: String? = null
         if (manager != null) {
             val events = runCatching {
-                manager.queryEvents(now - 15L * 60L * 1000L, now)
+                manager.queryEvents(now - lookbackMinutes.coerceAtLeast(1L) * 60L * 1000L, now)
             }.getOrNull()
             val event = UsageEvents.Event()
             if (events != null) {
@@ -200,6 +209,7 @@ object TrevorDeviceContextLearning {
         val now = System.currentTimeMillis()
         return read(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
             .values
+            .filter { now - it.lastSeen <= RETENTION_DAYS * 86_400_000L }
             .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
             .sortedByDescending { it.confidence }
     }
