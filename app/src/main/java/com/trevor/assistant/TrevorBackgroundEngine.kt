@@ -180,6 +180,9 @@ object TrevorBackgroundScheduler {
     private const val WORK = "trevor_proactive_intelligence"
 
     fun ensureScheduled(context: Context) {
+        // Silent local behaviour learning runs independently of proactive notifications.
+        TrevorBehaviorLearning.ensureBackgroundLearning(context)
+
         val settings = TrevorSettingsStore.load(context)
         if (!settings.backgroundNotifications || !settings.proactiveEnabled) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK)
