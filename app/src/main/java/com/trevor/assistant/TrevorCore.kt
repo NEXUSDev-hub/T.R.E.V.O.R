@@ -209,7 +209,8 @@ object TrevorCore {
                     apiKey = geminiKey,
                     prompt = enriched,
                     attachment = attachment,
-                    useGoogleSearch = true
+                    useGoogleSearch = true,
+                    model = if (TrevorAiRouting.isComplex(enriched)) GeminiAiProvider.ADVANCED_MODEL else GeminiAiProvider.NORMAL_MODEL
                 )
                 if (grounded.isSuccess) {
                     val verified = TrevorResearchVerifier.appendVerification(grounded.getOrThrow())
@@ -220,7 +221,10 @@ object TrevorCore {
         val result = TrevorMultiProviderRouter.ask(
             context = context.applicationContext,
             prompt = enriched,
-            preferred = settings.preferredProvider
+            forceAdvanced = TrevorAiRouting.isComplex(enriched) ||
+                attachment != null ||
+                mode == TrevorMode.ANALYSE ||
+                mode == TrevorMode.PROJECT
         )
         return result.fold(
             onSuccess = { TrevorCoreResult.Answer(if (mode == TrevorMode.RESEARCH) TrevorResearchVerifier.appendVerification(it) else it) },
