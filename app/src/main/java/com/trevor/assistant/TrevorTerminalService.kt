@@ -29,7 +29,7 @@ object TrevorTerminalService {
         reader = BufferedReader(InputStreamReader(process!!.inputStream))
         writer = process!!.outputStream
         sendRaw("export HOME='" + context.filesDir.absolutePath + "'")
-        sendRaw("export PATH='/system/bin:/system/xbin:\\$PATH'")
+        sendRaw("export PATH='/system/bin:/system/xbin:\$PATH'")
     }
 
     suspend fun execute(context: Context, command: String, state: TrevorState): String =
