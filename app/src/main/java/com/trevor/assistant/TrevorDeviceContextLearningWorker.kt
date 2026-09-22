@@ -3,13 +3,11 @@ package com.trevor.assistant
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
@@ -41,6 +39,7 @@ class TrevorDeviceContextLearningWorker(
 
 object TrevorDeviceContextLearningScheduler {
     private const val WORK_NAME = "trevor_device_context_learning"
+    private const val INITIAL_WORK_NAME = "trevor_device_context_learning_initial"
 
     fun ensureScheduled(context: Context, enabled: Boolean) {
         val workManager = WorkManager.getInstance(context)
@@ -60,14 +59,18 @@ object TrevorDeviceContextLearningScheduler {
             request
         )
 
-        // Do not query UsageStats or write learning data on the Activity/main thread.
-        // The periodic worker will provide the durable background sampling path.
+        // Use WorkManager for the first sample too, so UsageStats access and
+        // SharedPreferences I/O stay off the Activity/main thread and survive
+        // short process-lifecycle changes.
         if (TrevorDeviceContextLearning.hasUsageAccess(context)) {
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                runCatching {
-                    TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
-                }
-            }
+            val initialRequest = OneTimeWorkRequestBuilder<TrevorDeviceContextLearningWorker>()
+                .build()
+            workManager.enqueueUniqueWork(
+                INITIAL_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                initialRequest
+            )
         }
+
     }
 }
