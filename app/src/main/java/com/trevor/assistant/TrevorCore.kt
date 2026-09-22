@@ -235,7 +235,6 @@ object TrevorCore {
             context = context.applicationContext,
             prompt = enriched,
             forceAdvanced = TrevorAiRouting.isComplex(enriched) ||
-                TrevorSmartCore.shouldUseAdvanced(input, mode) ||
                 attachment != null ||
                 mode == TrevorMode.ANALYSE ||
                 mode == TrevorMode.PROJECT
@@ -271,7 +270,6 @@ object TrevorCore {
             "Mode: " + mode.name,
             if (memory.isNotEmpty()) "Relevant approved local memory:\n- " + memory.joinToString("\n- ") else "",
             modeInstruction,
-            TrevorSmartCore.instruction(input, mode),
             style,
             technical,
             attachment?.let { "Attached file: " + it.name + " (" + it.mimeType + "). Use it as authoritative user-provided context." } ?: "",
