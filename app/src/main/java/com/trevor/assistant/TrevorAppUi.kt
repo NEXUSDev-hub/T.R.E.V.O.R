@@ -458,7 +458,7 @@ private fun AnalyseWorkspace(attachment: TrevorAttachment?, accent: Color, onToo
 
 @Composable
 private fun ResearchWorkspace(accent: Color, onTool: (String) -> Unit) {
-    WorkspaceHeader("LIVE RESEARCH", "Gemini 3.6 Flash uses Google Search grounding in Research mode.", accent)
+    WorkspaceHeader("LIVE RESEARCH", "Gemini automatically selects 3.6 or 3.8 Flash; Research adds Google Search grounding.", accent)
     ToolGrid(listOf(
         "Latest" to "Find the latest verified information about:",
         "Compare sources" to "Research and compare reliable sources about:",
@@ -606,7 +606,7 @@ private fun TrevorSettingsScreen(
         TrevorTopBar("SETTINGS", onBack)
         TrevorSettingsSection("AI + NETWORK", settings.accent.color) {
             TrevorSwitch("AI enabled", settings.aiEnabled) { onChange(settings.copy(aiEnabled = it)) }
-            Text("Fixed AI engine: Google Gemini • Gemini 3.6 Flash", color = Color(0xFFDDF7FF), fontSize = 14.sp)
+            Text("AI engine: Google Gemini • 3.6 Flash ↔ 3.8 Flash (automatic)", color = Color(0xFFDDF7FF), fontSize = 14.sp)
             TrevorSwitch("Offline first", settings.offlineFirst) { onChange(settings.copy(offlineFirst = it)) }
             TrevorSwitch("Usage intelligence", settings.usageIntelligenceEnabled) { onChange(settings.copy(usageIntelligenceEnabled = it)) }
             TrevorSwitch("Proactive notifications", settings.proactiveNotifications) { onChange(settings.copy(proactiveNotifications = it)) }
@@ -669,7 +669,7 @@ private fun TrevorDeveloperScreen(context: Context, onBack: () -> Unit) {
                 Text("Version: " + TrevorVersion.label(context))
                 Text("Identity: " + TrevorIdentity.FULL_NAME)
                 Text("Creators: " + TrevorIdentity.CREATORS)
-                Text("Gemini model: " + GeminiAiProvider.MODEL)
+                Text("Gemini routing: 3.6 Flash normal • 3.8 Flash complex • 3.8 Live Live")
                 Text("Orb: OpenGL ES 2.0 crystal renderer")
                 Text("Orb state: " + state.orbState)
                 Text("Request: " + state.requestState)
