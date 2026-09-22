@@ -10,9 +10,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object GeminiAiProvider {
-    const val MODEL = "gemini-3.6-flash"
-    private const val ENDPOINT =
-        "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
+    const val NORMAL_MODEL = "gemini-3.6-flash"
+    const val ADVANCED_MODEL = "gemini-3.8-flash"
+    const val MODEL = NORMAL_MODEL
+    private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
     private const val MAX_INLINE_FILE_BYTES = 20L * 1024L * 1024L
 
     suspend fun ask(
@@ -20,6 +21,7 @@ object GeminiAiProvider {
         apiKey: String,
         prompt: String,
         attachment: TrevorAttachment? = null,
+        model: String = NORMAL_MODEL,
         useGoogleSearch: Boolean = false
     ): Result<String> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext Result.failure(IllegalArgumentException("Gemini API key is missing."))
@@ -51,7 +53,8 @@ object GeminiAiProvider {
                 body.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
             }
 
-            connection = URL(ENDPOINT).openConnection() as HttpURLConnection
+            val endpoint = ENDPOINT_BASE + model + ":generateContent"
+            connection = URL(endpoint).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 20_000
             connection.readTimeout = 90_000
