@@ -22,6 +22,9 @@ object TrevorRoutineDiscovery {
     fun suggestions(context: Context): List<TrevorRoutineSuggestion> {
         val current = TrevorDeviceContextLearning.snapshot(context)
         val contextPatterns = TrevorDeviceContextLearning.observations(context)
+        val transitions = TrevorBehaviorLearning.transitions(context)
+            .associateBy { it.fromPackage + "->" + it.toPackage }
+
         return TrevorBehaviorLearning.routineCandidates(context)
             .map { candidate ->
                 val lastPackage = candidate.sequence.lastOrNull()
@@ -29,7 +32,23 @@ object TrevorRoutineDiscovery {
                 val contextMatch = packageMatches.maxOfOrNull { pattern ->
                     contextSimilarity(current, pattern)
                 } ?: 0.0
-                val blended = (candidate.confidence * 0.7) + (contextMatch * 0.3)
+
+                val transitionSupport = candidate.sequence
+                    .zipWithNext()
+                    .map { (from, to) ->
+                        transitions[from + "->" + to]?.confidence ?: 0.0
+                    }
+                    .average()
+                    .coerceIn(0.0, 1.0)
+
+                // Part 3 combines repeated-sequence evidence with the reliability
+                // of every step and the current device context. A routine with a
+                // strong count but weak transitions should not outrank a coherent one.
+                val blended =
+                    (candidate.confidence * 0.55) +
+                        (transitionSupport * 0.25) +
+                        (contextMatch * 0.20)
+
                 TrevorRoutineSuggestion(
                     sequence = candidate.sequence,
                     confidence = blended.coerceIn(0.0, 1.0),
