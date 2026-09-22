@@ -9,6 +9,8 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.PowerManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
@@ -148,6 +150,30 @@ object TrevorDeviceContextLearning {
         observations[key] = updated
         write(prefs, prune(observations, now))
         return updated
+    }
+
+    fun recordCurrentForegroundContext(context: Context): ContextObservation {
+        val manager = context.getSystemService(UsageStatsManager::class.java)
+        val now = System.currentTimeMillis()
+        var foregroundPackage: String? = null
+        if (manager != null) {
+            val events = runCatching {
+                manager.queryEvents(now - 15L * 60L * 1000L, now)
+            }.getOrNull()
+            val event = UsageEvents.Event()
+            if (events != null) {
+                while (events.hasNextEvent()) {
+                    events.getNextEvent(event)
+                    if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED &&
+                        !event.packageName.isNullOrBlank() &&
+                        event.packageName != context.packageName
+                    ) {
+                        foregroundPackage = event.packageName
+                    }
+                }
+            }
+        }
+        return record(context, foregroundPackage)
     }
 
     fun observations(context: Context): List<ContextObservation> =
