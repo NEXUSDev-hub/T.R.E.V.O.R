@@ -192,7 +192,7 @@ object TrevorBackgroundScheduler {
         val request = PeriodicWorkRequestBuilder<TrevorProactiveWorker>(30, TimeUnit.MINUTES).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             request
         )
         TrevorTaskEngine.reschedulePending(context)
