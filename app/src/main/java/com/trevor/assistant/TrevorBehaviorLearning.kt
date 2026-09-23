@@ -361,9 +361,9 @@ object TrevorBehaviorLearning {
                 append("\nTransitions:\n")
                 top.forEach {
                     append("• ")
-                        .append(shortPackage(it.fromPackage))
+                        .append(displayPackage(context, it.fromPackage))
                         .append(" → ")
-                        .append(shortPackage(it.toPackage))
+                        .append(displayPackage(context, it.toPackage))
                         .append(" (")
                         .append(it.observations)
                         .append(" observations, ")
@@ -525,8 +525,14 @@ object TrevorBehaviorLearning {
     private fun expired(lastSeen: Long, now: Long): Boolean =
         now - lastSeen > TimeUnit.DAYS.toMillis(RETENTION_DAYS)
 
-    private fun shortPackage(pkg: String): String =
-        pkg.substringAfterLast('.').ifBlank { pkg }.take(32)
+    private fun displayPackage(context: Context, pkg: String): String =
+        runCatching {
+            context.packageManager.getApplicationInfo(pkg, 0)
+                .loadLabel(context.packageManager)
+                .toString()
+                .trim()
+                .take(32)
+        }.getOrDefault("an app")
 
     private fun transitionKey(from: String, to: String): String = "$from->$to"
 
