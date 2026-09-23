@@ -150,7 +150,11 @@ object TrevorAutomationEngine {
 
     fun completeManually(context: Context, taskId: String): Boolean {
         val task = loadTask(context, taskId) ?: return false
-        if (task.state == TrevorAutomationTaskState.CANCELLED) return false
+        if (task.state == TrevorAutomationTaskState.CANCELLED ||
+            task.state == TrevorAutomationTaskState.COMPLETED ||
+            task.state == TrevorAutomationTaskState.RUNNING ||
+            task.state == TrevorAutomationTaskState.RECOVERING
+        ) return false
         saveTask(context, task.copy(state = TrevorAutomationTaskState.COMPLETED, currentStep = task.plan.steps.size, attempts = 0))
         WorkManager.getInstance(context).cancelUniqueWork(WORK_PREFIX + taskId)
         return true
@@ -158,7 +162,11 @@ object TrevorAutomationEngine {
 
     fun snooze(context: Context, taskId: String, delayMillis: Long): UUID? {
         val task = loadTask(context, taskId) ?: return null
-        if (task.state == TrevorAutomationTaskState.COMPLETED || task.state == TrevorAutomationTaskState.CANCELLED) return null
+        if (task.state == TrevorAutomationTaskState.COMPLETED ||
+            task.state == TrevorAutomationTaskState.CANCELLED ||
+            task.state == TrevorAutomationTaskState.RUNNING ||
+            task.state == TrevorAutomationTaskState.RECOVERING
+        ) return null
 
         WorkManager.getInstance(context).cancelUniqueWork(WORK_PREFIX + taskId)
         return enqueue(context, task.plan, delayMillis)
