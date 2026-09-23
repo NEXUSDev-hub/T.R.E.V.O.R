@@ -133,8 +133,11 @@ object TrevorContextMemory {
     private suspend fun prune(context: Context, now: Long) {
         val contextCutoff = now - TimeUnit.DAYS.toMillis(CONTEXT_RETENTION_DAYS)
         val factCutoff = now - TimeUnit.DAYS.toMillis(FACT_RETENTION_DAYS)
-        TrevorDatabase.get(context).memoryDao().pruneContext(contextCutoff, MAX_CONTEXT_ROWS)
-        TrevorDatabase.get(context).memoryDao().pruneFacts(factCutoff, MAX_FACTS)
+        val dao = TrevorDatabase.get(context).memoryDao()
+        dao.pruneContextOlderThan(contextCutoff)
+        dao.pruneFactsOlderThan(factCutoff)
+        dao.pruneContextToLimit(MAX_CONTEXT_ROWS)
+        dao.pruneFactsToLimit(MAX_FACTS)
     }
 
     private fun hash(value: String): String =
