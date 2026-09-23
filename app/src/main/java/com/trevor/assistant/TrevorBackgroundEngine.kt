@@ -169,14 +169,21 @@ class TrevorTaskWorker(appContext: Context, params: WorkerParameters) : Coroutin
 
 class TrevorTaskActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val id = intent.getStringExtra(TrevorNotificationCenter.TASK_ID) ?: return
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 when (intent.action) {
-                    TrevorNotificationCenter.ACTION_DONE -> TrevorTaskEngine.complete(context, id)
-                    TrevorNotificationCenter.ACTION_SNOOZE -> TrevorTaskEngine.snooze(context, id)
-                    TrevorNotificationCenter.ACTION_DISMISS -> TrevorDynamicProactiveIntelligence.markDismissed(context)
+                    TrevorNotificationCenter.ACTION_DONE -> {
+                        val id = intent.getStringExtra(TrevorNotificationCenter.TASK_ID) ?: return@launch
+                        TrevorTaskEngine.complete(context, id)
+                    }
+                    TrevorNotificationCenter.ACTION_SNOOZE -> {
+                        val id = intent.getStringExtra(TrevorNotificationCenter.TASK_ID) ?: return@launch
+                        TrevorTaskEngine.snooze(context, id)
+                    }
+                    TrevorNotificationCenter.ACTION_DISMISS -> {
+                        TrevorDynamicProactiveIntelligence.markDismissed(context)
+                    }
                 }
             } finally {
                 pending.finish()
