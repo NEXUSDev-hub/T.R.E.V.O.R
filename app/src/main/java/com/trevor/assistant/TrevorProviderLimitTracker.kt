@@ -25,7 +25,17 @@ object TrevorProviderLimitTracker {
         val list = memory.getOrPut(provider) { mutableListOf() }
         synchronized(list) {
             list.removeAll { now - it > WINDOW_MS }
-            return now >= cooldown(context, provider)
+            if (now < cooldown(context, provider)) return false
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val remainingRequests = prefs.getLong(
+                provider.name + "_remaining_requests",
+                Long.MIN_VALUE
+            )
+            if (remainingRequests != Long.MIN_VALUE && remainingRequests <= 0L) {
+                val resetAt = prefs.getLong(provider.name + "_quota_reset", 0L)
+                if (resetAt <= 0L || now < resetAt) return false
+            }
+            return true
         }
     }
 
