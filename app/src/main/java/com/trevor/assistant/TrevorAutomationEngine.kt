@@ -182,6 +182,15 @@ object TrevorAutomationEngine {
             var task = loadTask(context, plan.id)
                 ?: TrevorAutomationTask(plan.id, plan.title, plan, TrevorAutomationTaskState.VALIDATED, 0, 0)
 
+            // The persisted task is the recovery source of truth.
+            val persistedPlan = task.plan
+            if (persistedPlan.id != plan.id || !TrevorStructuredPlanner.validate(persistedPlan).valid) {
+                return@withLock TrevorAutomationExecutionResult(
+                    "TREVOR rejected the persisted automation task because its stored plan is invalid.",
+                    completed = false
+                )
+            }
+
             if (task.state == TrevorAutomationTaskState.CANCELLED) {
                 return@withLock TrevorAutomationExecutionResult("TREVOR task was cancelled.", false, cancelled = true)
             }
@@ -192,7 +201,7 @@ object TrevorAutomationEngine {
             task = task.copy(state = TrevorAutomationTaskState.RUNNING)
             saveTask(context, task)
 
-            while (task.currentStep < plan.steps.size) {
+            while (task.currentStep < persistedPlan.steps.size) {
                 currentCoroutineContext().ensureActive()
 
                 val persisted = loadTask(context, plan.id)
@@ -202,8 +211,8 @@ object TrevorAutomationEngine {
                 if (persisted != null) task = persisted
 
                 val index = task.currentStep
-                val step = plan.steps[index]
-                var attempts = 0
+                val step = persistedPlan.steps[index]
+                var attempts = task.attempts.coerceAtLeast(0)
                 var success: String? = null
                 var retryableFailure = false
 
@@ -220,23 +229,31 @@ object TrevorAutomationEngine {
                     retryableFailure = execution.retryable
                     if (execution.ok && verifyStep(context, step)) {
                         success = execution.message
+                    } else if (execution.ok && !TrevorAutomationReliability.isRetrySafe(step.action)) {
+                        retryableFailure = false
+                        break
                     }
+                    retryableFailure = execution.retryable && TrevorAutomationReliability.isRetrySafe(step.action)
                 }
 
                 if (success == null) {
-                    task = task.copy(state = TrevorAutomationTaskState.FAILED, attempts = attempts)
+                    val canRetryWorker = retryableFailure && attempts < TrevorAutomationReliability.MAX_ATTEMPTS_PER_STEP
+                    task = task.copy(
+                        state = if (canRetryWorker) TrevorAutomationTaskState.RECOVERING else TrevorAutomationTaskState.FAILED,
+                        attempts = attempts
+                    )
                     saveTask(context, task)
                     return@withLock TrevorAutomationExecutionResult(
-                        "TREVOR task failed at step " + (index + 1) + "/" + plan.steps.size +
+                        "TREVOR task failed at step " + (index + 1) + "/" + persistedPlan.steps.size +
                             " after " + attempts + " attempt(s). " + executeStepDescription(step),
                         false,
-                        retryable = retryableFailure
+                        retryable = canRetryWorker
                     )
                 }
 
                 val next = index + 1
                 task = task.copy(
-                    state = if (next == plan.steps.size) TrevorAutomationTaskState.COMPLETED else TrevorAutomationTaskState.STEP_COMPLETE,
+                    state = if (next == persistedPlan.steps.size) TrevorAutomationTaskState.COMPLETED else TrevorAutomationTaskState.STEP_COMPLETE,
                     currentStep = next,
                     attempts = 0
                 )
@@ -244,7 +261,7 @@ object TrevorAutomationEngine {
             }
 
             TrevorAutomationExecutionResult(
-                "TREVOR task completed successfully. " + plan.steps.size + " step(s) executed and checkpointed.",
+                "TREVOR task completed successfully. " + persistedPlan.steps.size + " step(s) executed and checkpointed.",
                 true
             )
         }
@@ -309,10 +326,16 @@ object TrevorAutomationEngine {
     private fun pruneTaskRecords(prefs: android.content.SharedPreferences) {
         val entries = prefs.all.entries
             .filter { it.value is String }
-            .sortedByDescending { it.key }
+            .mapNotNull { entry ->
+                runCatching {
+                    val timestamp = org.json.JSONObject(entry.value as String).optLong("scheduledAt", 0L)
+                    entry.key to timestamp
+                }.getOrNull()
+            }
+            .sortedWith(compareByDescending<Pair<String, Long>> { it.second }.thenByDescending { it.first })
         if (entries.size <= MAX_TASK_RECORDS) return
         val editor = prefs.edit()
-        entries.drop(MAX_TASK_RECORDS).forEach { editor.remove(it.key) }
+        entries.drop(MAX_TASK_RECORDS).forEach { editor.remove(it.first) }
         editor.commit()
     }
 
@@ -371,7 +394,7 @@ object TrevorAutomationEngine {
             "BATTERY_STATUS" -> TrevorLocalIntelligence.answer(context, "battery") != null
             else -> false
         }
-        else -> false
+        else -> true
     }
 
     private fun intentForStep(context: Context, step: TrevorAutomationStep): Intent? = when (step.action) {
