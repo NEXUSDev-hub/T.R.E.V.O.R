@@ -168,6 +168,29 @@ object TrevorBehaviorLearning {
             // A long gap starts a new usage session and prevents a sequence from
             // accidentally joining two unrelated periods of phone use.
             val newSession = lastTimestamp <= 0L || timestamp - lastTimestamp > SESSION_GAP_MS
+            if (newSession) {
+                sequence.clear()
+                lastPackage = ""
+            }
+
+            if (lastPackage.isNotBlank() && lastPackage != pkg) {
+                val key = transitionKey(lastPackage, pkg)
+                val old = transitions[key]
+                val observations = (old?.observations ?: 0) + 1
+                transitions[key] = TransitionPattern(
+                    lastPackage,
+                    pkg,
+                    observations,
+                    timestamp,
+                    confidence(observations, timestamp)
+                )
+                transitionUpdates++
+            }
+
+            val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+            val hourBucket = calendar.get(Calendar.HOUR_OF_DAY) / 2
+            val weekday = calendar.get(Calendar.DAY_OF_WEEK)
+
             if (newSession || currentSessionStart <= 0L) {
                 currentSessionStart = timestamp
                 currentSessionApps.clear()
@@ -179,14 +202,16 @@ object TrevorBehaviorLearning {
             }
             currentSessionEnd = timestamp
 
-            val startCalendar = Calendar.getInstance().apply { timeInMillis = currentSessionStart }
+            val sessionStartCalendar = Calendar.getInstance().apply {
+                timeInMillis = currentSessionStart
+            }
             val session = SessionPattern(
                 sessionStart = currentSessionStart,
                 sessionEnd = currentSessionEnd,
                 durationMs = (currentSessionEnd - currentSessionStart).coerceAtLeast(0L),
                 apps = currentSessionApps.distinct(),
-                hourBucket = startCalendar.get(Calendar.HOUR_OF_DAY) / 2,
-                weekday = startCalendar.get(Calendar.DAY_OF_WEEK),
+                hourBucket = sessionStartCalendar.get(Calendar.HOUR_OF_DAY) / 2,
+                weekday = sessionStartCalendar.get(Calendar.DAY_OF_WEEK),
                 observations = 1,
                 lastSeen = currentSessionEnd,
                 confidence = confidence(1, currentSessionEnd)
@@ -387,8 +412,13 @@ object TrevorBehaviorLearning {
         return updates
     }
 
-    private fun readStringList(prefs: android.content.SharedPreferences, key: String): List<String> {
-        val array = runCatching { JSONArray(prefs.getString(key, "[]") ?: "[]") }.getOrDefault(JSONArray())
+    private fun readStringList(
+        prefs: android.content.SharedPreferences,
+        key: String
+    ): List<String> {
+        val array = runCatching {
+            JSONArray(prefs.getString(key, "[]") ?: "[]")
+        }.getOrDefault(JSONArray())
         return buildList {
             for (i in 0 until array.length()) {
                 val value = array.optString(i).trim()
@@ -412,6 +442,189 @@ object TrevorBehaviorLearning {
         }
         while (result.size > MAX_SEQUENCE_LENGTH) result.removeAt(0)
         return result
+    }
+
+    private fun writeSequence(
+        prefs: android.content.SharedPreferences,
+        sequence: List<Pair<String, Long>>
+    ) {
+        val array = JSONArray()
+        sequence.takeLast(MAX_SEQUENCE_LENGTH).forEach { (pkg, timestamp) ->
+            array.put(
+                JSONObject()
+                    .put("package", pkg)
+                    .put("time", timestamp)
+            )
+        }
+        prefs.edit().putString(LAST_SEQUENCE, array.toString()).apply()
+    }
+
+    private fun normalizeSequence(sequence: List<String>): List<String> {
+        val out = ArrayList<String>(sequence.size)
+        sequence.forEach { raw ->
+            val pkg = raw.trim()
+            if (pkg.isBlank()) return@forEach
+            if (out.lastOrNull() != pkg) out += pkg
+        }
+        return out.take(MAX_SEQUENCE_LENGTH)
+    }
+
+    private fun confidence(
+        observations: Int,
+        lastSeen: Long,
+        now: Long = System.currentTimeMillis()
+    ): Double {
+        val ageDays =
+            (now - lastSeen).coerceAtLeast(0L).toDouble() / TimeUnit.DAYS.toMillis(1)
+        val repetition = min(1.0, observations / 10.0)
+        val recency = 1.0 / (1.0 + ageDays / 14.0)
+        return ((0.15 + 0.85 * repetition) * recency).coerceIn(0.0, 1.0)
+    }
+
+    private fun expired(lastSeen: Long, now: Long): Boolean =
+        now - lastSeen > TimeUnit.DAYS.toMillis(RETENTION_DAYS)
+
+    private fun shortPackage(pkg: String): String =
+        pkg.substringAfterLast('.').ifBlank { pkg }.take(32)
+
+    private fun transitionKey(from: String, to: String): String = "$from->$to"
+
+    private fun sessionKey(sessionStart: Long): String =
+        sessionStart.toString()
+
+    private fun routineKey(sequence: List<String>): String =
+        sequence.joinToString(">")
+
+    private fun pruneTransitions(
+        input: Map<String, TransitionPattern>,
+        now: Long
+    ): Map<String, TransitionPattern> =
+        input.values
+            .filter { !expired(it.lastSeen, now) }
+            .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
+            .sortedByDescending { it.confidence }
+            .take(MAX_TRANSITIONS)
+            .associateBy { transitionKey(it.fromPackage, it.toPackage) }
+
+    private fun pruneSessions(
+        input: Map<String, SessionPattern>,
+        now: Long
+    ): Map<String, SessionPattern> =
+        input.values
+            .filter { !expired(it.lastSeen, now) }
+            .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
+            .sortedByDescending { it.confidence }
+            .take(MAX_SESSIONS)
+            .associateBy { sessionKey(it.packageName, it.hourBucket, it.weekday) }
+
+    private fun pruneRoutines(
+        input: Map<String, RoutineCandidate>,
+        now: Long
+    ): Map<String, RoutineCandidate> {
+        // Approved routines are user decisions, so ordinary observation retention
+        // must not silently delete them just because they have gone quiet.
+        val approved = input.values
+            .filter { it.approved }
+            .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
+            .sortedByDescending { it.confidence }
+
+        val active = input.values
+            .filter { !it.approved && !expired(it.lastSeen, now) }
+            .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
+            .sortedByDescending { it.confidence }
+
+        return (approved + active)
+            .take(MAX_ROUTINES)
+            .associateBy { routineKey(it.sequence) }
+    }
+
+    private fun readTransitions(
+        prefs: android.content.SharedPreferences
+    ): MutableMap<String, TransitionPattern> {
+        val array = runCatching {
+            JSONArray(prefs.getString(TRANSITIONS, "[]") ?: "[]")
+        }.getOrDefault(JSONArray())
+
+        val out = mutableMapOf<String, TransitionPattern>()
+        for (i in 0 until array.length()) {
+            val o = array.optJSONObject(i) ?: continue
+            val from = o.optString("from")
+            val to = o.optString("to")
+            if (from.isBlank() || to.isBlank()) continue
+
+            out[transitionKey(from, to)] = TransitionPattern(
+                from,
+                to,
+                o.optInt("observations").coerceAtLeast(0),
+                o.optLong("lastSeen"),
+                o.optDouble("confidence").coerceIn(0.0, 1.0)
+            )
+        }
+        return out
+    }
+
+    private fun writeTransitions(
+        prefs: android.content.SharedPreferences,
+        values: Map<String, TransitionPattern>
+    ) {
+        val array = JSONArray()
+        values.values.forEach {
+            array.put(
+                JSONObject()
+                    .put("from", it.fromPackage)
+                    .put("to", it.toPackage)
+                    .put("observations", it.observations)
+                    .put("lastSeen", it.lastSeen)
+                    .put("confidence", it.confidence)
+            )
+        }
+        prefs.edit().putString(TRANSITIONS, array.toString()).apply()
+    }
+
+    private fun readSessions(
+        prefs: android.content.SharedPreferences
+    ): MutableMap<String, SessionPattern> {
+        val array = runCatching {
+            JSONArray(prefs.getString(SESSIONS, "[]") ?: "[]")
+        }.getOrDefault(JSONArray())
+
+        val out = mutableMapOf<String, SessionPattern>()
+        for (i in 0 until array.length()) {
+            val o = array.optJSONObject(i) ?: continue
+            val start = o.optLong("sessionStart", 0L)
+            val end = o.optLong("sessionEnd", 0L)
+            val legacyPackage = o.optString("package").trim()
+            val appsArray = o.optJSONArray("apps")
+            val apps = buildList {
+                if (appsArray != null) {
+                    for (j in 0 until appsArray.length()) {
+                        val value = appsArray.optString(j).trim()
+                        if (value.isNotBlank()) add(value)
+                    }
+                } else if (legacyPackage.isNotBlank()) {
+                    add(legacyPackage)
+                }
+            }.distinct()
+            if (apps.isEmpty()) continue
+            val lastSeen = o.optLong("lastSeen", end)
+            val resolvedStart = if (start > 0L) start else lastSeen
+            val resolvedEnd = if (end > 0L) end else lastSeen
+            val startCalendar = Calendar.getInstance().apply { timeInMillis = resolvedStart }
+            val hour = o.optInt("hour", startCalendar.get(Calendar.HOUR_OF_DAY) / 2)
+            val weekday = o.optInt("weekday", startCalendar.get(Calendar.DAY_OF_WEEK))
+            out[sessionKey(resolvedStart)] = SessionPattern(
+                sessionStart = resolvedStart,
+                sessionEnd = resolvedEnd.coerceAtLeast(resolvedStart),
+                durationMs = o.optLong("durationMs", (resolvedEnd - resolvedStart).coerceAtLeast(0L)),
+                apps = apps,
+                hourBucket = hour,
+                weekday = weekday,
+                observations = o.optInt("observations").coerceAtLeast(1),
+                lastSeen = lastSeen,
+                confidence = o.optDouble("confidence").coerceIn(0.0, 1.0)
+            )
+        }
+        return out
     }
 
     private fun writeSessions(
