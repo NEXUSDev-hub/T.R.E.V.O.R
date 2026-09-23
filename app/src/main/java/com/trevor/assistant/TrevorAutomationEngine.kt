@@ -49,6 +49,7 @@ object TrevorAutomationEngine {
         return request.id
     }
 
+    @Synchronized
     fun execute(context: Context, plan: TrevorAutomationPlan): String {
         val validation = TrevorStructuredPlanner.validate(plan)
         if (!validation.valid) return "TREVOR rejected this automation: " + validation.errors.joinToString(" ")
