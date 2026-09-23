@@ -226,21 +226,8 @@ object TrevorCore {
         }.take(MAX_ENRICHED_CHARS)
 
         if (mode == TrevorMode.RESEARCH) {
-            val geminiKey = SecureApiKeyStore.load(context)
-            if (!geminiKey.isNullOrBlank()) {
-                val grounded = GeminiAiProvider.ask(
-                    context = context.applicationContext,
-                    apiKey = geminiKey,
-                    prompt = enriched,
-                    attachment = attachment,
-                    useGoogleSearch = true,
-                    model = if (TrevorAiRouting.isComplex(enriched)) GeminiAiProvider.ADVANCED_MODEL else GeminiAiProvider.NORMAL_MODEL
-                )
-                if (grounded.isSuccess) {
-                    val verified = TrevorResearchVerifier.appendVerification(grounded.getOrThrow())
-                    return TrevorCoreResult.Answer(verified)
-                }
-            }
+            // Research stays on the same provider-routing path so rate limits,
+            // fallback rules, identity directive and failure tracking are consistent.
         }
         val result = TrevorMultiProviderRouter.ask(
             context = context.applicationContext,
@@ -249,7 +236,8 @@ object TrevorCore {
                 TrevorAiRouting.isComplex(enriched) ||
                 attachment != null ||
                 mode == TrevorMode.ANALYSE ||
-                mode == TrevorMode.PROJECT
+                mode == TrevorMode.PROJECT,
+            useGoogleSearch = mode == TrevorMode.RESEARCH || smartIntent.needsFreshInformation
         )
         return result.fold(
             onSuccess = { TrevorCoreResult.Answer(if (mode == TrevorMode.RESEARCH) TrevorResearchVerifier.appendVerification(it) else it) },
