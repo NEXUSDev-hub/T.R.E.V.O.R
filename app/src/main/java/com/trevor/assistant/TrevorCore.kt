@@ -68,7 +68,19 @@ object TrevorCore {
         val resolvedMode = explicitlySelectedMode ?: smartIntent.suggestedMode
 
         val automation = if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION) {
-            TrevorAutomationEngine.plan(clean)
+            if (smartIntent.automationSteps.isNotEmpty()) {
+                TrevorAutomationPlan(
+                    title = "TREVOR automation",
+                    steps = smartIntent.automationSteps,
+                    id = java.util.UUID.nameUUIDFromBytes(
+                        ("semantic|" + smartIntent.automationSteps.joinToString("|") {
+                            it.action + ":" + it.argument
+                        }).toByteArray()
+                    ).toString()
+                ).takeIf { TrevorStructuredPlanner.validate(it).valid }
+            } else {
+                TrevorAutomationEngine.plan(clean)
+            }
         } else {
             null
         }
