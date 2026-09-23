@@ -48,12 +48,14 @@ object TrevorProactiveDecisionEngine {
     suspend fun generate(context: Context, decision: Decision, pending: List<TrevorTask>, recent: List<TrevorConversationMessage>): String {
         if (decision.action != Action.GENERATE) return ""
         val settings = TrevorSettingsStore.load(context)
+        val memoryContext = TrevorContextMemory.buildProactiveContext(context, pending, 8)
         val prompt = TrevorIdentity.IMMUTABLE_DIRECTIVE + "\n\n" +
             "You are TREVOR's proactive message generator. A local decision engine has already decided that an unsolicited message is justified. Generate the actual message from the supplied context.\n\n" +
             "Local decision reason: " + decision.reason + "\n" +
             "Decision confidence: " + "%.2f".format(java.util.Locale.US, decision.score) + "\n" +
             "Personality: " + settings.personality.name + "\n" +
-            "Context:\n" + decision.context + "\n\n" +
+            "Context:\n" + decision.context + "\n" +
+            "Memory context:\n" + memoryContext + "\n\n" +
             "Rules:\n- Return one concise natural-language message only.\n" +
             "- Ground every claim in the supplied context.\n" +
             "- Never invent completed actions, reminders, app activity, or device state.\n" +
