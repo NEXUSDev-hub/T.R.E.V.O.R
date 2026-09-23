@@ -13,7 +13,9 @@ data class TrevorRoutineSuggestion(
 
 object TrevorRoutineDiscovery {
     private const val MIN_CONFIDENCE = 0.35
+    private const val MIN_OBSERVATIONS = 3
     private const val MAX_SUGGESTIONS = 6
+    private const val MAX_CANDIDATE_AGE_DAYS = 45L
 
     /**
      * Part 3: turns the local behaviour/context signals from Parts 1-2 into
@@ -37,6 +39,7 @@ object TrevorRoutineDiscovery {
         val appTransitions = TrevorBehaviorLearning.transitions(context)
             .associateBy { it.fromPackage + "->" + it.toPackage }
 
+        val now = System.currentTimeMillis()
         val currentSignature = current.signature()
         val contextSequenceSupport = contextSequences
             .filter { it.states.firstOrNull() == currentSignature }
@@ -49,12 +52,15 @@ object TrevorRoutineDiscovery {
             ?: 0.0
 
         return TrevorBehaviorLearning.routineCandidates(context)
+            .filter { it.observations >= MIN_OBSERVATIONS }
+            .filter { now - it.lastSeen <= MAX_CANDIDATE_AGE_DAYS * 86_400_000L }
             .map { candidate ->
                 val lastPackage = candidate.sequence.lastOrNull()
                 val packageMatches = contextPatterns.filter { it.packageName == lastPackage }
-                val contextMatch = packageMatches.maxOfOrNull { pattern ->
-                    contextSimilarity(current, pattern)
-                } ?: 0.0
+                val contextMatch = candidate.sequence.map { packageName ->
+                    contextPatterns.filter { it.packageName == packageName }
+                        .maxOfOrNull { pattern -> contextSimilarity(current, pattern) } ?: 0.0
+                }.average().coerceIn(0.0, 1.0)
 
                 val appTransitionSupport = candidate.sequence
                     .zipWithNext()
@@ -68,8 +74,8 @@ object TrevorRoutineDiscovery {
                 // context contributes without allowing a one-off context to create
                 // an automation candidate.
                 val blended =
-                    (candidate.confidence * 0.50) +
-                        (appTransitionSupport * 0.25) +
+                    (candidate.confidence * 0.55) +
+                        (appTransitionSupport * 0.20) +
                         (contextMatch * 0.15) +
                         (contextTransitionSupport * 0.05) +
                         (contextSequenceSupport * 0.05)
@@ -82,7 +88,7 @@ object TrevorRoutineDiscovery {
                     trigger = triggerFor(current, contextMatch, contextTransitionSupport, contextSequenceSupport)
                 )
             }
-            .filter { it.confidence >= MIN_CONFIDENCE }
+            .filter { it.confidence >= MIN_CONFIDENCE && (it.observations >= MIN_OBSERVATIONS) }
             .sortedWith(
                 compareByDescending<TrevorRoutineSuggestion> { it.confidence }
                     .thenByDescending { it.observations }
