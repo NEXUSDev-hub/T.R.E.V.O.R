@@ -79,7 +79,11 @@ object TrevorBehaviorLearning {
         val observations: Int,
         val lastSeen: Long,
         val confidence: Double,
-        val approved: Boolean = false
+        val approved: Boolean = false,
+        val distinctDays: Int = 0,
+        val distinctSessions: Int = 0,
+        val evidenceDays: List<String> = emptyList(),
+        val evidenceSessions: List<Long> = emptyList()
     )
 
     data class SyncResult(
@@ -230,7 +234,7 @@ object TrevorBehaviorLearning {
             while (sequence.size > MAX_SEQUENCE_LENGTH) sequence.removeAt(0)
 
             if (sequenceChanged) {
-                routineUpdates += discoverRoutines(routines, sequence, timestamp)
+                routineUpdates += discoverRoutines(routines, sequence, timestamp, currentSessionStart)
             }
 
             lastTimestamp = timestamp
@@ -381,7 +385,8 @@ object TrevorBehaviorLearning {
     private fun discoverRoutines(
         existing: MutableMap<String, RoutineCandidate>,
         sequence: List<Pair<String, Long>>,
-        now: Long
+        now: Long,
+        sessionStart: Long
     ): Int {
         if (sequence.size < 3) return 0
 
@@ -399,13 +404,23 @@ object TrevorBehaviorLearning {
             val key = routineKey(candidate)
             val old = existing[key]
             val observations = (old?.observations ?: 0) + 1
+            val dayKey = dayKey(now)
+            val days = (old?.evidenceDays.orEmpty() + dayKey).distinct().takeLast(30)
+            val sessions = (old?.evidenceSessions.orEmpty() + sessionStart)
+                .filter { it > 0L }
+                .distinct()
+                .takeLast(30)
 
             existing[key] = RoutineCandidate(
                 sequence = candidate,
                 observations = observations,
                 lastSeen = now,
                 confidence = confidence(observations, now),
-                approved = old?.approved == true
+                approved = old?.approved == true,
+                distinctDays = days.size,
+                distinctSessions = sessions.size,
+                evidenceDays = days,
+                evidenceSessions = sessions
             )
             updates++
         }
@@ -468,6 +483,32 @@ object TrevorBehaviorLearning {
         }
         return out.take(MAX_SEQUENCE_LENGTH)
     }
+
+
+    private fun readJsonStringList(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                val value = array.optString(i).trim()
+                if (value.isNotBlank()) add(value)
+            }
+        }.distinct().takeLast(30)
+    }
+
+    private fun readJsonLongList(array: JSONArray?): List<Long> {
+        if (array == null) return emptyList()
+        return buildList {
+            for (i in 0 until array.length()) {
+                val value = array.optLong(i, 0L)
+                if (value > 0L) add(value)
+            }
+        }.distinct().takeLast(30)
+    }
+
+    private fun dayKey(timestamp: Long): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+            .apply { timeZone = java.util.TimeZone.getDefault() }
+            .format(java.util.Date(timestamp))
 
     private fun confidence(
         observations: Int,
