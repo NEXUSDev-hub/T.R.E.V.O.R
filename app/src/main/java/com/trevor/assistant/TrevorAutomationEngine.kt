@@ -211,47 +211,41 @@ object TrevorAutomationEngine {
 
                 val index = task.currentStep
                 val step = persistedPlan.steps[index]
-                var attempts = task.attempts.coerceAtLeast(0)
-                var success: String? = null
-                var retryableFailure = false
+                // One worker invocation performs one action attempt. WorkManager owns
+                // the retry/backoff loop; this prevents three rapid UI launches before the
+                // platform has time to settle and makes persisted attempts authoritative.
+                val attempts = (task.attempts.coerceAtLeast(0) + 1)
+                    .coerceAtMost(TrevorAutomationReliability.MAX_ATTEMPTS_PER_STEP)
 
-                while (attempts < TrevorAutomationReliability.MAX_ATTEMPTS_PER_STEP && success == null) {
-                    currentCoroutineContext().ensureActive()
-                    attempts++
+                task = task.copy(
+                    state = if (attempts == 1) TrevorAutomationTaskState.RUNNING else TrevorAutomationTaskState.RECOVERING,
+                    attempts = attempts
+                )
+                saveTask(context, task)
+
+                val execution = executeStep(context, step)
+                val verified = execution.ok && verifyStep(context, step)
+                val success = execution.ok && verified
+
+                val retryableFailure =
+                    !success &&
+                        (execution.retryable || (execution.ok && !verified)) &&
+                        TrevorAutomationReliability.isRetrySafe(step.action)
+
+                if (!success) {
+                    val canRetryWorker =
+                        retryableFailure && attempts < TrevorAutomationReliability.MAX_ATTEMPTS_PER_STEP
+
                     task = task.copy(
-                        state = if (attempts == 1) TrevorAutomationTaskState.RUNNING else TrevorAutomationTaskState.RECOVERING,
+                        state = if (canRetryWorker) TrevorAutomationTaskState.RECOVERING
+                        else TrevorAutomationTaskState.FAILED,
                         attempts = attempts
                     )
                     saveTask(context, task)
 
-                    val execution = executeStep(context, step)
-                    if (execution.ok) {
-                        if (verifyStep(context, step)) {
-                            success = execution.message
-                            retryableFailure = false
-                        } else {
-                            // A verification miss is retryable only for idempotent actions.
-                            retryableFailure = TrevorAutomationReliability.isRetrySafe(step.action)
-                        }
-                    } else {
-                        retryableFailure = execution.retryable &&
-                            TrevorAutomationReliability.isRetrySafe(step.action)
-                    }
-                    if (execution.ok && !TrevorAutomationReliability.isRetrySafe(step.action) && success == null) {
-                        break
-                    }
-                }
-
-                if (success == null) {
-                    val canRetryWorker = retryableFailure && attempts < TrevorAutomationReliability.MAX_ATTEMPTS_PER_STEP
-                    task = task.copy(
-                        state = if (canRetryWorker) TrevorAutomationTaskState.RECOVERING else TrevorAutomationTaskState.FAILED,
-                        attempts = attempts
-                    )
-                    saveTask(context, task)
                     return@withLock TrevorAutomationExecutionResult(
                         "TREVOR task failed at step " + (index + 1) + "/" + persistedPlan.steps.size +
-                            " after " + attempts + " attempt(s). " + executeStepDescription(step),
+                            " on attempt " + attempts + ". " + executeStepDescription(step),
                         false,
                         retryable = canRetryWorker
                     )
