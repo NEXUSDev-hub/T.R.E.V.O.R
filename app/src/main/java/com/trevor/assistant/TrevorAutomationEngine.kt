@@ -370,6 +370,9 @@ object TrevorAutomationEngine {
         else -> null
     }
 
+    private fun isDeviceInteractive(context: Context): Boolean =
+        context.getSystemService(android.os.PowerManager::class.java)?.isInteractive == true
+
     private fun executeStepDescription(step: TrevorAutomationStep): String =
         "Action=" + step.action + if (step.argument.isBlank()) "" else " argument=" + step.argument.take(120)
 
