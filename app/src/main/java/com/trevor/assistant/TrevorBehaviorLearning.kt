@@ -46,6 +46,8 @@ object TrevorBehaviorLearning {
     private const val ROUTINE_MIN_OBSERVATIONS = 3
     private const val WORK_NAME = "trevor_behavior_learning"
 
+    private val storageLock = Any()
+
     data class TransitionPattern(
         val fromPackage: String,
         val toPackage: String,
@@ -94,6 +96,7 @@ object TrevorBehaviorLearning {
         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
 
     fun sync(context: Context): SyncResult {
+        synchronized(storageLock) {
         if (!hasUsageAccess(context)) return SyncResult(0, 0, 0, 0, false)
 
         val manager = context.getSystemService(UsageStatsManager::class.java)
@@ -224,6 +227,7 @@ object TrevorBehaviorLearning {
             routineUpdates,
             true
         )
+        }
     }
 
     fun transitions(context: Context): List<TransitionPattern> {
@@ -261,7 +265,7 @@ object TrevorBehaviorLearning {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         return readRoutines(prefs).values
-            .filter { it.approved && !expired(it.lastSeen, now) }
+            .filter { it.approved }
             .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
             .sortedByDescending { it.confidence }
     }
