@@ -271,7 +271,7 @@ object TrevorCore {
             "Mode: " + mode.name,
             if (memory.isNotEmpty()) "Relevant approved local memory:\n- " + memory.joinToString("\n- ") else "",
             modeInstruction,
-            TrevorSmartCore.instruction(input, mode, attachment != null),
+            TrevorSmartCore.instruction(input, mode, attachment != null, smartIntent),
             style,
             technical,
             attachment?.let { "Attached file: " + it.name + " (" + it.mimeType + "). Use it as authoritative user-provided context." } ?: "",
