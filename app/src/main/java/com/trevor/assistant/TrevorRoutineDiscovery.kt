@@ -113,7 +113,7 @@ object TrevorRoutineDiscovery {
             items.forEachIndexed { index, item ->
                 append(index + 1)
                     .append(". ")
-                    .append(item.sequence.joinToString(" → ") { shortPackage(it) })
+                    .append(item.sequence.joinToString(" → ") { displayPackage(context, it) })
                     .append(" — ")
                     .append((item.confidence * 100).toInt())
                     .append("% confidence, ")
@@ -189,6 +189,12 @@ object TrevorRoutineDiscovery {
         }
     }
 
-    private fun shortPackage(packageName: String): String =
-        packageName.substringAfterLast('.').ifBlank { packageName }.take(28)
+    private fun displayPackage(context: Context, packageName: String): String =
+        runCatching {
+            context.packageManager.getApplicationInfo(packageName, 0)
+                .loadLabel(context.packageManager)
+                .toString()
+                .trim()
+                .take(28)
+        }.getOrDefault("an app")
 }
