@@ -8,7 +8,7 @@ import java.util.Locale
 
 /** Part 4: semantic intent routing. Online requests use Gemini structured classification; offline mode has a safe fallback. No reasoning is exposed. */
 object TrevorSmartCore {
-    enum class IntentKind { QUESTION, EXPLANATION, RESEARCH, ANALYSIS, PROJECT, AUTOMATION, TERMINAL, MEMORY, REMINDER, GENERAL }
+    enum class IntentKind { QUESTION, EXPLANATION, RESEARCH, ANALYSIS, PROJECT, AUTOMATION, TERMINAL, MEMORY, REMINDER, ROUTINE, USAGE, GENERAL }
 
     data class Intent(
         val kind: IntentKind,
@@ -96,18 +96,20 @@ object TrevorSmartCore {
         }
         if (explicit != null) return explicit.copy(suggestedMode = mode ?: TrevorMode.NORMAL)
         val kind = when {
-            Regex("""^(remember|save|store)\\b""").containsMatchIn(text) -> IntentKind.MEMORY
-            Regex("""^remind me\\b""").containsMatchIn(text) -> IntentKind.REMINDER
-            Regex("""\\b(run|execute)\\b.{0,40}\\bterminal\\b|\\bshell command\\b""").containsMatchIn(text) -> IntentKind.TERMINAL
-            Regex("""\\b(research|verify|look up|latest|current|recent|news)\\b""").containsMatchIn(text) -> IntentKind.RESEARCH
-            Regex("""\\b(analy[sz]e|audit|debug|inspect|diagnos|compare|review)\\w*\\b""").containsMatchIn(text) -> IntentKind.ANALYSIS
-            Regex("""\\b(project|architecture|roadmap|prototype)\\b""").containsMatchIn(text) -> IntentKind.PROJECT
-            Regex("""\\b(open|launch|turn on|turn off|enable|disable|share|copy)\\b""").containsMatchIn(text) -> IntentKind.AUTOMATION
-            Regex("""\\b(explain|define|meaning|difference|teach me)\\b""").containsMatchIn(text) -> IntentKind.EXPLANATION
-            text.endsWith("?") || Regex("""^(what|why|how|when|where|who|which|can|could|is|are|does|do)\\b""").containsMatchIn(text) -> IntentKind.QUESTION
+            Regex("""^(remember|save|store)\b""").containsMatchIn(text) -> IntentKind.MEMORY
+            Regex("""^remind me\b""").containsMatchIn(text) -> IntentKind.REMINDER
+            Regex("""\b(run|execute)\b.{0,40}\bterminal\b|\bshell command\b""").containsMatchIn(text) -> IntentKind.TERMINAL
+            Regex("""\b(research|verify|look up|latest|current|recent|news)\b""").containsMatchIn(text) -> IntentKind.RESEARCH
+            Regex("""\b(habit|routine|patterns?|usual|often)\b""").containsMatchIn(text) -> IntentKind.ROUTINE
+            Regex("""\b(usage|phone use|screen time|app use)\b""").containsMatchIn(text) -> IntentKind.USAGE
+            Regex("""\b(analy[sz]e|audit|debug|inspect|diagnos|compare|review)\w*\b""").containsMatchIn(text) -> IntentKind.ANALYSIS
+            Regex("""\b(project|architecture|roadmap|prototype)\b""").containsMatchIn(text) -> IntentKind.PROJECT
+            Regex("""\b(open|launch|turn on|turn off|enable|disable|share|copy)\b""").containsMatchIn(text) -> IntentKind.AUTOMATION
+            Regex("""\b(explain|define|meaning|difference|teach me)\b""").containsMatchIn(text) -> IntentKind.EXPLANATION
+            text.endsWith("?") || Regex("""^(what|why|how|when|where|who|which|can|could|is|are|does|do)\b""").containsMatchIn(text) -> IntentKind.QUESTION
             else -> IntentKind.GENERAL
         }
-        val fresh = kind == IntentKind.RESEARCH || Regex("""\\b(latest|today|current|right now|recent|news|verify)\\b""").containsMatchIn(text)
+        val fresh = kind == IntentKind.RESEARCH || Regex("""\b(latest|today|current|right now|recent|news|verify)\b""").containsMatchIn(text)
         val advanced = attachmentPresent || kind in setOf(IntentKind.RESEARCH, IntentKind.ANALYSIS, IntentKind.PROJECT, IntentKind.TERMINAL) || input.length > 1800
         val suggestedMode = when (kind) {
             IntentKind.RESEARCH -> TrevorMode.RESEARCH
