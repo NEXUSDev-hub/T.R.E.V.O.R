@@ -10,8 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: trevor-debug-apk-${{ github.ref }}
-  queue: max
+  group: trevor-debug-apk-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
