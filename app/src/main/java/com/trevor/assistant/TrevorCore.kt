@@ -57,10 +57,13 @@ object TrevorCore {
             return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
         }
         val resolvedMode = TrevorModeRouter.route(mode, clean)
-        val smartIntent = TrevorSmartCore.classify(
+        val smartIntent = TrevorSmartCore.understand(
+            context = context.applicationContext,
             input = clean,
             mode = resolvedMode,
-            attachmentPresent = attachment != null
+            attachmentPresent = attachment != null,
+            aiEnabled = aiEnabled,
+            geminiEnabled = geminiEnabled
         )
 
         val automation = if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION) {
