@@ -8,12 +8,16 @@ data class TrevorRoutineSuggestion(
     val confidence: Double,
     val observations: Int,
     val contextMatch: Double,
-    val trigger: String
+    val trigger: String,
+    val distinctDays: Int = 0,
+    val distinctSessions: Int = 0
 )
 
 object TrevorRoutineDiscovery {
     private const val MIN_CONFIDENCE = 0.35
     private const val MIN_OBSERVATIONS = 3
+    private const val MIN_DISTINCT_DAYS = 2
+    private const val MIN_DISTINCT_SESSIONS = 2
     private const val MAX_SUGGESTIONS = 6
     private const val MAX_CANDIDATE_AGE_DAYS = 45L
 
@@ -34,33 +38,20 @@ object TrevorRoutineDiscovery {
 
         val current = TrevorDeviceContextLearning.snapshot(context)
         val contextPatterns = TrevorDeviceContextLearning.observations(context)
-        val contextTransitions = TrevorDeviceContextLearning.transitions(context)
-        val contextSequences = TrevorDeviceContextLearning.sequences(context)
         val appTransitions = TrevorBehaviorLearning.transitions(context)
             .associateBy { it.fromPackage + "->" + it.toPackage }
 
         val now = System.currentTimeMillis()
-        val currentSignature = current.signature()
-        val contextSequenceSupport = contextSequences
-            .filter { it.states.firstOrNull() == currentSignature }
-            .maxOfOrNull { it.confidence }
-            ?: 0.0
-
-        val contextTransitionSupport = contextTransitions
-            .filter { it.fromSignature == currentSignature }
-            .maxOfOrNull { it.confidence }
-            ?: 0.0
-
         return TrevorBehaviorLearning.routineCandidates(context)
             .filter { it.observations >= MIN_OBSERVATIONS }
+            .filter { it.distinctDays >= MIN_DISTINCT_DAYS && it.distinctSessions >= MIN_DISTINCT_SESSIONS }
             .filter { now - it.lastSeen <= MAX_CANDIDATE_AGE_DAYS * 86_400_000L }
             .map { candidate ->
-                val lastPackage = candidate.sequence.lastOrNull()
-                val packageMatches = contextPatterns.filter { it.packageName == lastPackage }
-                val contextMatch = candidate.sequence.map { packageName ->
-                    contextPatterns.filter { it.packageName == packageName }
-                        .maxOfOrNull { pattern -> contextSimilarity(current, pattern) } ?: 0.0
-                }.average().coerceIn(0.0, 1.0)
+                val triggerPackage = candidate.sequence.firstOrNull()
+                val contextMatch = contextPatterns
+                    .filter { it.packageName == triggerPackage }
+                    .maxOfOrNull { pattern -> contextSimilarity(current, pattern) }
+                    ?: 0.0
 
                 val appTransitionSupport = candidate.sequence
                     .zipWithNext()
@@ -74,21 +65,26 @@ object TrevorRoutineDiscovery {
                 // context contributes without allowing a one-off context to create
                 // an automation candidate.
                 val blended =
-                    (candidate.confidence * 0.55) +
-                        (appTransitionSupport * 0.20) +
-                        (contextMatch * 0.15) +
-                        (contextTransitionSupport * 0.05) +
-                        (contextSequenceSupport * 0.05)
+                    (candidate.confidence * 0.60) +
+                        (appTransitionSupport * 0.25) +
+                        (contextMatch * 0.15)
 
                 TrevorRoutineSuggestion(
                     sequence = candidate.sequence,
                     confidence = blended.coerceIn(0.0, 1.0),
                     observations = candidate.observations,
                     contextMatch = contextMatch,
-                    trigger = triggerFor(current, contextMatch, contextTransitionSupport, contextSequenceSupport)
+                    trigger = triggerFor(current, contextMatch),
+                    distinctDays = candidate.distinctDays,
+                    distinctSessions = candidate.distinctSessions
                 )
             }
-            .filter { it.confidence >= MIN_CONFIDENCE && (it.observations >= MIN_OBSERVATIONS) }
+            .filter {
+                it.confidence >= MIN_CONFIDENCE &&
+                    it.observations >= MIN_OBSERVATIONS &&
+                    it.distinctDays >= MIN_DISTINCT_DAYS &&
+                    it.distinctSessions >= MIN_DISTINCT_SESSIONS
+            }
             .sortedWith(
                 compareByDescending<TrevorRoutineSuggestion> { it.confidence }
                     .thenByDescending { it.observations }
@@ -178,9 +174,7 @@ object TrevorRoutineDiscovery {
 
     private fun triggerFor(
         current: TrevorDeviceContextLearning.ContextSnapshot,
-        contextMatch: Double,
-        transitionSupport: Double,
-        sequenceSupport: Double
+        contextMatch: Double
     ): String {
         val time = String.format(
             Locale.ROOT,
@@ -188,11 +182,10 @@ object TrevorRoutineDiscovery {
             current.hourBucket * 2,
             current.hourBucket * 2 + 2
         )
-        return when {
-            sequenceSupport >= 0.7 -> "strong learned context sequence around $time"
-            transitionSupport >= 0.7 -> "strong learned context transition around $time"
-            contextMatch >= 0.7 -> "strong current-context match around $time"
-            else -> "historical pattern around $time"
+        return if (contextMatch >= 0.7) {
+            "strong current-context match around $time"
+        } else {
+            "repeated pattern around $time"
         }
     }
 
