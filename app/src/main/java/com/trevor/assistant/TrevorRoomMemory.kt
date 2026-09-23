@@ -42,6 +42,24 @@ data class TrevorLongTermMemory(
     val timestamp: Long
 )
 
+@Entity(tableName = "context_observations")
+data class TrevorContextObservation(
+    @PrimaryKey val fingerprint: String,
+    val signature: String,
+    val appPackage: String,
+    val observedAt: Long
+)
+
+@Entity(tableName = "memory_facts")
+data class TrevorMemoryFact(
+    @PrimaryKey val key: String,
+    val value: String,
+    val confirmed: Boolean,
+    val source: String,
+    val updatedAt: Long,
+    val confidence: Double
+)
+
 @Dao
 interface TrevorMemoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -81,6 +99,33 @@ interface TrevorMemoryDao {
     suspend fun deleteProject(projectId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertContext(observation: TrevorContextObservation)
+
+    @Query("SELECT * FROM context_observations ORDER BY observedAt DESC LIMIT :limit")
+    suspend fun recentContext(limit: Int): List<TrevorContextObservation>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertFact(fact: TrevorMemoryFact)
+
+    @Query("SELECT * FROM memory_facts WHERE confirmed = 1 ORDER BY updatedAt DESC LIMIT :limit")
+    suspend fun confirmedFacts(limit: Int): List<TrevorMemoryFact>
+
+    @Query("DELETE FROM memory_facts WHERE key = :key")
+    suspend fun deleteFact(key: String)
+
+    @Query("DELETE FROM context_observations WHERE observedAt < :cutoff")
+    suspend fun pruneContextOlderThan(cutoff: Long)
+
+    @Query("DELETE FROM memory_facts WHERE updatedAt < :cutoff")
+    suspend fun pruneFactsOlderThan(cutoff: Long)
+
+    @Query("DELETE FROM context_observations WHERE fingerprint NOT IN (SELECT fingerprint FROM context_observations ORDER BY observedAt DESC LIMIT :keep)")
+    suspend fun pruneContextToLimit(keep: Int)
+
+    @Query("DELETE FROM memory_facts WHERE key NOT IN (SELECT key FROM memory_facts ORDER BY updatedAt DESC LIMIT :keep)")
+    suspend fun pruneFactsToLimit(keep: Int)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemory(memory: TrevorLongTermMemory)
 
     @Query("SELECT * FROM long_term_memory ORDER BY timestamp DESC LIMIT 100")
@@ -88,8 +133,8 @@ interface TrevorMemoryDao {
 }
 
 @Database(
-    entities = [TrevorConversationMessage::class, TrevorProjectMemory::class, TrevorTask::class, TrevorLongTermMemory::class],
-    version = 2,
+    entities = [TrevorConversationMessage::class, TrevorProjectMemory::class, TrevorTask::class, TrevorLongTermMemory::class, TrevorContextObservation::class, TrevorMemoryFact::class],
+    version = 3,
     exportSchema = false
 )
 abstract class TrevorDatabase : RoomDatabase() {
@@ -101,13 +146,22 @@ abstract class TrevorDatabase : RoomDatabase() {
                 db.execSQL("CREATE TABLE IF NOT EXISTS trevor_tasks (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, action TEXT NOT NULL, triggerAt INTEGER NOT NULL, status TEXT NOT NULL, createdAt INTEGER NOT NULL)")
             }
         }
+        private val TREVOR_MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS context_observations (fingerprint TEXT NOT NULL PRIMARY KEY, signature TEXT NOT NULL, appPackage TEXT NOT NULL, observedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS memory_facts (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL, confirmed INTEGER NOT NULL, source TEXT NOT NULL, updatedAt INTEGER NOT NULL, confidence REAL NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_context_observations_observedAt ON context_observations(observedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_facts_updatedAt ON memory_facts(updatedAt)")
+            }
+        }
+
         @Volatile private var instance: TrevorDatabase? = null
         fun get(context: Context): TrevorDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 TrevorDatabase::class.java,
                 "trevor_memory.db"
-            ).addMigrations(TREVOR_MIGRATION_1_2).build().also { instance = it }
+            ).addMigrations(TREVOR_MIGRATION_1_2, TREVOR_MIGRATION_2_3).build().also { instance = it }
         }
     }
 }
