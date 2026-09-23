@@ -47,6 +47,16 @@ class TrevorStructuredPlannerTest {
     }
 
     @Test
+    fun identicalPlansHaveStableIds() {
+        val first = TrevorAutomationEngine.plan("share rock and roll")
+        val second = TrevorAutomationEngine.plan("share rock and roll")
+        assertNotNull(first)
+        assertNotNull(second)
+        assertTrue(first!!.id == second!!.id)
+        assertTrue(first.steps.single().argument == "rock and roll")
+    }
+
+    @Test
     fun rejectsInvalidVerificationContract() {
         val plan = TrevorAutomationPlan(
             "test",
