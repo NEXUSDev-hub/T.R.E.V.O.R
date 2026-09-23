@@ -60,13 +60,19 @@ object TrevorBehaviorLearning {
     )
 
     data class SessionPattern(
-        val packageName: String,
+        val sessionStart: Long,
+        val sessionEnd: Long,
+        val durationMs: Long,
+        val apps: List<String>,
         val hourBucket: Int,
         val weekday: Int,
         val observations: Int,
         val lastSeen: Long,
         val confidence: Double
-    )
+    ) {
+        val packageName: String
+            get() = apps.firstOrNull().orEmpty()
+    }
 
     data class RoutineCandidate(
         val sequence: List<String>,
@@ -400,38 +406,12 @@ object TrevorBehaviorLearning {
         val result = ArrayList<Pair<String, Long>>(MAX_SEQUENCE_LENGTH)
         for (i in 0 until array.length()) {
             val o = array.optJSONObject(i) ?: continue
-            val start = o.optLong("sessionStart", 0L)
-            val end = o.optLong("sessionEnd", 0L)
-            val legacyPackage = o.optString("package").trim()
-            val appsArray = o.optJSONArray("apps")
-            val apps = buildList {
-                if (appsArray != null) {
-                    for (j in 0 until appsArray.length()) {
-                        val value = appsArray.optString(j).trim()
-                        if (value.isNotBlank()) add(value)
-                    }
-                } else if (legacyPackage.isNotBlank()) add(legacyPackage)
-            }.distinct()
-            if (apps.isEmpty()) continue
-            val lastSeen = o.optLong("lastSeen", end)
-            val resolvedStart = if (start > 0L) start else lastSeen
-            val resolvedEnd = if (end > 0L) end else lastSeen
-            val calendar = Calendar.getInstance().apply { timeInMillis = resolvedStart }
-            val hour = o.optInt("hour", calendar.get(Calendar.HOUR_OF_DAY) / 2)
-            val weekday = o.optInt("weekday", calendar.get(Calendar.DAY_OF_WEEK))
-            out[sessionKey(resolvedStart)] = SessionPattern(
-                sessionStart = resolvedStart,
-                sessionEnd = resolvedEnd.coerceAtLeast(resolvedStart),
-                durationMs = o.optLong("durationMs", (resolvedEnd - resolvedStart).coerceAtLeast(0L)),
-                apps = apps,
-                hourBucket = hour,
-                weekday = weekday,
-                observations = o.optInt("observations").coerceAtLeast(1),
-                lastSeen = lastSeen,
-                confidence = o.optDouble("confidence").coerceIn(0.0, 1.0)
-            )
+            val pkg = o.optString("package").trim()
+            val timestamp = o.optLong("time")
+            if (pkg.isNotBlank() && timestamp > 0L) result += pkg to timestamp
         }
-        return out
+        while (result.size > MAX_SEQUENCE_LENGTH) result.removeAt(0)
+        return result
     }
 
     private fun writeSessions(
