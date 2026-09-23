@@ -299,6 +299,13 @@ object TrevorAutomationEngine {
     private data class StepExecution(val ok: Boolean, val message: String, val retryable: Boolean)
 
     private fun executeStep(context: Context, step: TrevorAutomationStep): StepExecution = runCatching {
+        if (step.requiresForeground && !isDeviceInteractive(context)) {
+            return@runCatching StepExecution(
+                false,
+                "FAIL • Step requires an interactive device; execution will retry when the device is active.",
+                true
+            )
+        }
         when (step.action) {
             "USAGE_SUMMARY" -> StepExecution(true, "OK • " + TrevorUsageIntelligence.summary(context), false)
             "BATTERY_STATUS" -> StepExecution(true, "OK • " + (TrevorLocalIntelligence.answer(context, "battery") ?: "Battery unavailable."), false)
