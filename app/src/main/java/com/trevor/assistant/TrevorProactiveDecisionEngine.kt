@@ -54,7 +54,6 @@ object TrevorProactiveDecisionEngine {
             "Decision confidence: " + "%.2f".format(java.util.Locale.US, decision.score) + "\n" +
             "Personality: " + settings.personality.name + "\n" +
             "Context:\n" + decision.context + "\n\n" +
-            "Recent conversation:\n" + recent.takeLast(6).joinToString("\n") { it.role + ": " + it.content.take(500) } + "\n\n" +
             "Rules:\n- Return one concise natural-language message only.\n" +
             "- Ground every claim in the supplied context.\n" +
             "- Never invent completed actions, reminders, app activity, or device state.\n" +
