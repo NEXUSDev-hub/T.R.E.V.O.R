@@ -68,10 +68,10 @@ object TrevorSmartCore {
         val text = input.trim().lowercase(Locale.ROOT)
         if (text.isBlank()) return Intent(IntentKind.GENERAL, 1.0, false, attachmentPresent, mode ?: TrevorMode.NORMAL, listOf("blank-input"))
         val explicit = when (mode) {
-            TrevorMode.TERMINAL -> Intent(IntentKind.TERMINAL, .99, false, true, listOf("explicit-mode"))
-            TrevorMode.RESEARCH -> Intent(IntentKind.RESEARCH, .99, true, true, listOf("explicit-mode"))
-            TrevorMode.ANALYSE -> Intent(IntentKind.ANALYSIS, .99, false, true, listOf("explicit-mode"))
-            TrevorMode.PROJECT -> Intent(IntentKind.PROJECT, .99, false, true, listOf("explicit-mode"))
+            TrevorMode.TERMINAL -> Intent(IntentKind.TERMINAL, .99, false, true, TrevorMode.TERMINAL, listOf("explicit-mode"))
+            TrevorMode.RESEARCH -> Intent(IntentKind.RESEARCH, .99, true, true, TrevorMode.RESEARCH, listOf("explicit-mode"))
+            TrevorMode.ANALYSE -> Intent(IntentKind.ANALYSIS, .99, false, true, TrevorMode.ANALYSE, listOf("explicit-mode"))
+            TrevorMode.PROJECT -> Intent(IntentKind.PROJECT, .99, false, true, TrevorMode.PROJECT, listOf("explicit-mode"))
             else -> null
         }
         if (explicit != null) return explicit.copy(suggestedMode = mode ?: TrevorMode.NORMAL)
