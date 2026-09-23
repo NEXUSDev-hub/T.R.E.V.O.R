@@ -43,6 +43,8 @@ android {
         implementation("androidx.work:work-runtime:2.11.2")
         implementation("com.google.mlkit:text-recognition:16.0.1")
         implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+        testImplementation("junit:junit:4.13.2")
         ksp("androidx.room:room-compiler:2.8.5")
     }
 }
