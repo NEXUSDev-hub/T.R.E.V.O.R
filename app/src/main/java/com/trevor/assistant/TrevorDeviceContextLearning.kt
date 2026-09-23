@@ -184,6 +184,7 @@ object TrevorDeviceContextLearning {
         val manager = context.getSystemService(UsageStatsManager::class.java)
         val now = System.currentTimeMillis()
         var foregroundPackage: String? = null
+        var latestResumedPackage: String? = null
         if (manager != null) {
             val events = runCatching {
                 manager.queryEvents(now - lookbackMinutes.coerceAtLeast(1L) * 60L * 1000L, now)
@@ -193,14 +194,14 @@ object TrevorDeviceContextLearning {
                 while (events.hasNextEvent()) {
                     events.getNextEvent(event)
                     if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED &&
-                        !event.packageName.isNullOrBlank() &&
-                        event.packageName != context.packageName
+                        !event.packageName.isNullOrBlank()
                     ) {
-                        foregroundPackage = event.packageName
+                        latestResumedPackage = event.packageName
                     }
                 }
             }
         }
+        foregroundPackage = latestResumedPackage?.takeIf { it != context.packageName }
         val packageName = foregroundPackage ?: return null
         return record(context, packageName)
     }
