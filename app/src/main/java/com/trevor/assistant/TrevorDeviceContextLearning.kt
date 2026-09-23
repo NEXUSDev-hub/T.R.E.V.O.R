@@ -38,6 +38,7 @@ object TrevorDeviceContextLearning {
     private const val MAX_SEQUENCE_LENGTH = 4
     private const val RETENTION_DAYS = 45
     private const val USAGE_LOOKBACK_MINUTES = 40L
+    private const val MIN_SAMPLE_INTERVAL_MS = 10L * 60L * 1000L
 
     private val storageLock = Any()
 
@@ -219,6 +220,16 @@ object TrevorDeviceContextLearning {
         val updated: ContextObservation
 
         synchronized(storageLock) {
+            val stateSignature = snapshot.signature()
+            val sampleKey = observedPackage + "|" + stateSignature
+            val lastSampleKey = prefs.getString("last_sample_key", null)
+            val lastSampleTime = prefs.getLong("last_sample_time", 0L)
+            if (sampleKey == lastSampleKey && now - lastSampleTime < MIN_SAMPLE_INTERVAL_MS) {
+                val existing = readObservations(prefs)[buildKey(snapshot, observedPackage)]
+                if (existing != null) return existing.copy(
+                    confidence = confidence(existing.observations, existing.lastSeen, now)
+                )
+            }
             val observations = readObservations(prefs).toMutableMap()
             val old = observations[buildKey(snapshot, observedPackage)]
             val count = (old?.observations ?: 0) + 1
@@ -243,7 +254,6 @@ object TrevorDeviceContextLearning {
             )
             observations[buildKey(snapshot, observedPackage)] = updated
 
-            val stateSignature = snapshot.signature()
             val previous = prefs.getString("last_context_signature", null)
             if (previous != null && previous != stateSignature) {
                 recordTransitionLocked(prefs, previous, stateSignature, now)
@@ -259,6 +269,8 @@ object TrevorDeviceContextLearning {
             prefs.edit()
                 .putString("last_context_signature", stateSignature)
                 .putLong("last_context_seen", now)
+                .putString("last_sample_key", sampleKey)
+                .putLong("last_sample_time", now)
                 .putString("rolling_context_sequence", JSONArray(rolling).toString())
                 .apply()
         }
@@ -386,12 +398,13 @@ object TrevorDeviceContextLearning {
         now: Long
     ) {
         val values = readSequences(prefs).toMutableMap()
-        val start = maxOf(0, rolling.size - MAX_SEQUENCE_LENGTH)
-        val sequence = rolling.subList(start, rolling.size)
-        val key = sequence.joinToString("→")
-        val old = values[key]
-        val count = (old?.observations ?: 0) + 1
-        values[key] = ContextSequence(sequence.toList(), count, now, confidence(count, now))
+        for (length in 2..min(MAX_SEQUENCE_LENGTH, rolling.size)) {
+            val sequence = rolling.takeLast(length)
+            val key = sequence.joinToString("→")
+            val old = values[key]
+            val count = (old?.observations ?: 0) + 1
+            values[key] = ContextSequence(sequence.toList(), count, now, confidence(count, now))
+        }
         writeSequences(prefs, pruneSequences(values, now))
     }
 
