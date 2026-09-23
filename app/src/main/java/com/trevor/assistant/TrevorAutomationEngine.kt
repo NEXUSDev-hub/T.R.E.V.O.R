@@ -60,8 +60,7 @@ data class TrevorAutomationExecutionResult(
 
 object TrevorAutomationEngine {
     private const val PREFS = "trevor_automation_runtime"
-    private const val MAX_RETRIES = 2
-    private const val MAX_TASK_RECORDS = 120
+        private const val MAX_TASK_RECORDS = 120
     private const val MAX_DELAY_MILLIS = 7L * 24L * 60L * 60L * 1000L
     private const val WORK_PREFIX = "trevor-automation-"
     private val executionMutex = Mutex()
@@ -216,7 +215,7 @@ object TrevorAutomationEngine {
                 var success: String? = null
                 var retryableFailure = false
 
-                while (attempts <= MAX_RETRIES && success == null) {
+                while (attempts < TrevorAutomationReliability.MAX_ATTEMPTS_PER_STEP && success == null) {
                     currentCoroutineContext().ensureActive()
                     attempts++
                     task = task.copy(
@@ -226,14 +225,21 @@ object TrevorAutomationEngine {
                     saveTask(context, task)
 
                     val execution = executeStep(context, step)
-                    retryableFailure = execution.retryable
-                    if (execution.ok && verifyStep(context, step)) {
-                        success = execution.message
-                    } else if (execution.ok && !TrevorAutomationReliability.isRetrySafe(step.action)) {
-                        retryableFailure = false
+                    if (execution.ok) {
+                        if (verifyStep(context, step)) {
+                            success = execution.message
+                            retryableFailure = false
+                        } else {
+                            // A verification miss is retryable only for idempotent actions.
+                            retryableFailure = TrevorAutomationReliability.isRetrySafe(step.action)
+                        }
+                    } else {
+                        retryableFailure = execution.retryable &&
+                            TrevorAutomationReliability.isRetrySafe(step.action)
+                    }
+                    if (execution.ok && !TrevorAutomationReliability.isRetrySafe(step.action) && success == null) {
                         break
                     }
-                    retryableFailure = execution.retryable && TrevorAutomationReliability.isRetrySafe(step.action)
                 }
 
                 if (success == null) {
