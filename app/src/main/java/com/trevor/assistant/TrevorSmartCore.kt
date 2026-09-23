@@ -39,7 +39,7 @@ object TrevorSmartCore {
         if (key.isBlank()) return@withContext fallback
         val prompt = "Understand this request by meaning rather than keyword matching. Request: ${input.take(8000)}" +
             if (attachmentPresent) "\nAn attachment is present." else ""
-        GeminiAiProvider.classifyIntent(context, key, prompt).fold(
+        TrevorMultiProviderRouter.classifyIntent(context, prompt).fold(
             onSuccess = { parseModelIntent(it, attachmentPresent, mode, fallback) },
             onFailure = { fallback }
         )
