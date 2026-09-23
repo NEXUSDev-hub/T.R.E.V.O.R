@@ -30,7 +30,7 @@ object TrevorAutomationNotificationHelper {
 
         val complete = PendingIntent.getBroadcast(
             context, task.id.hashCode(),
-            Intent(context, TrevorTaskActionReceiver::class.java)
+            Intent(context, TrevorAutomationTaskActionReceiver::class.java)
                 .setAction(ACTION_COMPLETE)
                 .putExtra(EXTRA_TASK_ID, task.id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
