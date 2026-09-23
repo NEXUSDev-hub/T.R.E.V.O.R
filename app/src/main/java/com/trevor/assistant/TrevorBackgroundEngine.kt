@@ -220,6 +220,9 @@ class TrevorProactiveWorker(appContext: Context, params: WorkerParameters) : Cor
         val settings = TrevorSettingsStore.load(applicationContext)
         if (!settings.proactiveEnabled || !settings.backgroundNotifications || !settings.proactiveNotifications) return Result.success()
 
+        val contextSnapshot = TrevorDeviceContextLearning.snapshot(applicationContext)
+        TrevorContextMemory.recordContext(applicationContext, contextSnapshot, null)
+
         val pending = TrevorPersistentMemory.pendingTasks(applicationContext)
         val conversationId = applicationContext.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
             .getString("conversation_id", null)
