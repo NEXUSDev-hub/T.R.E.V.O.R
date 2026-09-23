@@ -24,16 +24,29 @@ object TrevorRoutineDiscovery {
         if (!settings.usageIntelligenceEnabled || !TrevorBehaviorLearning.hasUsageAccess(context)) {
             return emptyList()
         }
-        if (settings.usageIntelligenceEnabled && TrevorBehaviorLearning.hasUsageAccess(context)) {
-            // Keep discovery fresh when the UI/core asks for suggestions instead of waiting
-            // for the next 30-minute background sample.
-            TrevorBehaviorLearning.sync(context)
-            TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
-        }
+
+        // Refresh local signals when discovery is explicitly requested instead of
+        // waiting for the next periodic background sample.
+        TrevorBehaviorLearning.sync(context)
+        TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
+
         val current = TrevorDeviceContextLearning.snapshot(context)
         val contextPatterns = TrevorDeviceContextLearning.observations(context)
-        val transitions = TrevorBehaviorLearning.transitions(context)
+        val contextTransitions = TrevorDeviceContextLearning.transitions(context)
+        val contextSequences = TrevorDeviceContextLearning.sequences(context)
+        val appTransitions = TrevorBehaviorLearning.transitions(context)
             .associateBy { it.fromPackage + "->" + it.toPackage }
+
+        val currentSignature = current.signature()
+        val contextSequenceSupport = contextSequences
+            .filter { it.states.firstOrNull() == currentSignature }
+            .maxOfOrNull { it.confidence }
+            ?: 0.0
+
+        val contextTransitionSupport = contextTransitions
+            .filter { it.fromSignature == currentSignature }
+            .maxOfOrNull { it.confidence }
+            ?: 0.0
 
         return TrevorBehaviorLearning.routineCandidates(context)
             .map { candidate ->
@@ -43,28 +56,30 @@ object TrevorRoutineDiscovery {
                     contextSimilarity(current, pattern)
                 } ?: 0.0
 
-                val transitionSupport = candidate.sequence
+                val appTransitionSupport = candidate.sequence
                     .zipWithNext()
                     .map { (from, to) ->
-                        transitions[from + "->" + to]?.confidence ?: 0.0
+                        appTransitions[from + "->" + to]?.confidence ?: 0.0
                     }
                     .average()
                     .coerceIn(0.0, 1.0)
 
-                // Part 3 combines repeated-sequence evidence with the reliability
-                // of every step and the current device context. A routine with a
-                // strong count but weak transitions should not outrank a coherent one.
+                // Repeated behaviour remains the strongest signal. Richer device
+                // context contributes without allowing a one-off context to create
+                // an automation candidate.
                 val blended =
-                    (candidate.confidence * 0.55) +
-                        (transitionSupport * 0.25) +
-                        (contextMatch * 0.20)
+                    (candidate.confidence * 0.50) +
+                        (appTransitionSupport * 0.25) +
+                        (contextMatch * 0.15) +
+                        (contextTransitionSupport * 0.05) +
+                        (contextSequenceSupport * 0.05)
 
                 TrevorRoutineSuggestion(
                     sequence = candidate.sequence,
                     confidence = blended.coerceIn(0.0, 1.0),
                     observations = candidate.observations,
                     contextMatch = contextMatch,
-                    trigger = triggerFor(current, contextMatch)
+                    trigger = triggerFor(current, contextMatch, contextTransitionSupport, contextSequenceSupport)
                 )
             }
             .filter { it.confidence >= MIN_CONFIDENCE }
@@ -74,8 +89,6 @@ object TrevorRoutineDiscovery {
                     .thenByDescending { it.sequence.size }
             )
             .fold(mutableListOf<TrevorRoutineSuggestion>()) { selected, item ->
-                // Avoid flooding the UI with a short prefix of a stronger,
-                // longer routine. Keep the more informative pattern.
                 val coveredByStronger = selected.any { stronger ->
                     stronger.sequence.size > item.sequence.size &&
                         stronger.sequence.take(item.sequence.size) == item.sequence &&
@@ -134,12 +147,20 @@ object TrevorRoutineDiscovery {
         add(current.weekday == learned.weekday, 0.7)
         add(current.charging == learned.charging, 0.8)
         add(
-            (current.batteryPercent < 0 || learned.batteryBucket < 0) ||
-                current.batteryPercent / 10 * 10 == learned.batteryBucket,
-            0.5
+            current.batteryPercent < 0 ||
+                learned.batteryBucket < 0 ||
+                current.batteryPercent / 5 * 5 == learned.batteryBucket,
+            0.6
         )
-        add(current.network == learned.network, 0.8)
-        add(current.metered == learned.metered, 0.4)
+        add(current.network == learned.network, 0.7)
+        add(current.networkTransports == learned.networkTransports, 0.6)
+        add(current.networkValidated == learned.networkValidated, 0.5)
+        add(current.metered == learned.metered, 0.5)
+        add(current.temporaryUnmetered == learned.temporaryUnmetered, 0.4)
+        add(
+            current.downstreamBandwidthBucket == learned.downstreamBandwidthBucket,
+            0.35
+        )
         add(current.screenInteractive == learned.screenInteractive, 0.5)
         if (current.bluetoothEnabled != null && learned.bluetoothEnabled != null) {
             add(current.bluetoothEnabled == learned.bluetoothEnabled, 0.3)
@@ -151,7 +172,9 @@ object TrevorRoutineDiscovery {
 
     private fun triggerFor(
         current: TrevorDeviceContextLearning.ContextSnapshot,
-        contextMatch: Double
+        contextMatch: Double,
+        transitionSupport: Double,
+        sequenceSupport: Double
     ): String {
         val time = String.format(
             Locale.ROOT,
@@ -159,10 +182,11 @@ object TrevorRoutineDiscovery {
             current.hourBucket * 2,
             current.hourBucket * 2 + 2
         )
-        return if (contextMatch >= 0.7) {
-            "strong current-context match around $time"
-        } else {
-            "historical pattern around $time"
+        return when {
+            sequenceSupport >= 0.7 -> "strong learned context sequence around $time"
+            transitionSupport >= 0.7 -> "strong learned context transition around $time"
+            contextMatch >= 0.7 -> "strong current-context match around $time"
+            else -> "historical pattern around $time"
         }
     }
 
