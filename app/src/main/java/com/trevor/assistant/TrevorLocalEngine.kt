@@ -44,7 +44,7 @@ object TrevorLocalEngine {
         return TrevorEngineResult.NeedAI(input)
     }
 
-    fun processCommand(context: Context, command: String): TrevorEngineResult {
+    suspend fun processCommand(context: Context, command: String): TrevorEngineResult {
         val automation = TrevorAutomationEngine.plan(command)
         if (automation != null) return TrevorEngineResult.Answer(TrevorAutomationEngine.execute(context, automation))
         return processCommand(command)
