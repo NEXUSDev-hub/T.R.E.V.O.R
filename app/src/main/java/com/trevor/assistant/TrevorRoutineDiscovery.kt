@@ -21,6 +21,9 @@ object TrevorRoutineDiscovery {
      */
     fun suggestions(context: Context): List<TrevorRoutineSuggestion> {
         val settings = TrevorSettingsStore.load(context)
+        if (!settings.usageIntelligenceEnabled || !TrevorBehaviorLearning.hasUsageAccess(context)) {
+            return emptyList()
+        }
         if (settings.usageIntelligenceEnabled && TrevorBehaviorLearning.hasUsageAccess(context)) {
             // Keep discovery fresh when the UI/core asks for suggestions instead of waiting
             // for the next 30-minute background sample.
