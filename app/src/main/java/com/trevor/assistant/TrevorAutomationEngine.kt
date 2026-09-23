@@ -26,7 +26,7 @@ object TrevorAutomationEngine {
 
     fun plan(input: String): TrevorAutomationPlan? {
         val parts = input.trim().split(Regex("\\s*(?:,|;|\\band then\\b|\\bthen\\b)\\s*", RegexOption.IGNORE_CASE)).map(String::trim).filter(String::isNotBlank)
-        if (parts.size < 2) return null
+        if (parts.isEmpty()) return null
         val steps = parts.map { TrevorStructuredPlanner.normalizeAction(it) ?: return null }
         val result = TrevorAutomationPlan("Multi-step Android task", steps)
         return if (TrevorStructuredPlanner.validate(result).valid) result else null
@@ -39,6 +39,7 @@ object TrevorAutomationEngine {
 
     fun enqueue(context: Context, plan: TrevorAutomationPlan): UUID {
         validate(plan).getOrThrow()
+        saveTask(context, TrevorAutomationTask(plan.id, plan.title, plan, TrevorAutomationTaskState.VALIDATED, 0, 0))
         saveTask(context, TrevorAutomationTask(plan.id, plan.title, plan, TrevorAutomationTaskState.QUEUED, 0, 0))
         val request = OneTimeWorkRequestBuilder<TrevorAutomationWorker>()
             .setInputData(Data.Builder().putString("task_id", plan.id).build())
@@ -56,6 +57,10 @@ object TrevorAutomationEngine {
         if (task.state == TrevorAutomationTaskState.COMPLETED) return "TREVOR task is already completed."
 
         while (task.currentStep < plan.steps.size) {
+            val persisted = loadTask(context, plan.id)
+            if (persisted?.state == TrevorAutomationTaskState.CANCELLED) {
+                return "TREVOR task was cancelled."
+            }
             val index = task.currentStep
             val step = plan.steps[index]
             var attempts = 0
@@ -65,7 +70,9 @@ object TrevorAutomationEngine {
                 task = task.copy(state = if (attempts == 1) TrevorAutomationTaskState.RUNNING else TrevorAutomationTaskState.RECOVERING, attempts = attempts)
                 saveTask(context, task)
                 val execution = executeStep(context, step)
-                if (execution.first && verifyStep(context, step)) success = execution.second
+                if (execution.first && execution.second.startsWith("OK") && verifyStep(context, step)) {
+                    success = execution.second
+                }
             }
             if (success == null) {
                 task = task.copy(state = TrevorAutomationTaskState.FAILED, attempts = attempts)
@@ -126,10 +133,35 @@ object TrevorAutomationEngine {
     }.getOrElse { false to "FAIL • " + (it.message ?: "Android action failed.") }
 
     private fun verifyStep(context: Context, step: TrevorAutomationStep): Boolean = when (step.verify) {
-        "activity" -> true
-        "clipboard" -> context.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() == step.argument
-        "battery" -> TrevorLocalIntelligence.answer(context, "battery") != null
-        else -> true
+        "dispatch" -> resolveIntentForStep(context, step)?.resolveActivity(context.packageManager) != null
+        "launch" -> {
+            val packageName = resolvePackage(context, step.argument) ?: return false
+            context.packageManager.getLaunchIntentForPackage(packageName) != null
+        }
+        "clipboard" -> context.getSystemService(android.content.ClipboardManager::class.java)
+            ?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() == step.argument
+        "result" -> when (step.action) {
+            "USAGE_SUMMARY" -> TrevorUsageIntelligence.summary(context).isNotBlank()
+            "BATTERY_STATUS" -> TrevorLocalIntelligence.answer(context, "battery") != null
+            else -> false
+        }
+        else -> false
+    }
+
+    private fun resolveIntentForStep(context: Context, step: TrevorAutomationStep): Intent? = when (step.action) {
+        "OPEN_WIFI" -> Intent(Settings.ACTION_WIFI_SETTINGS)
+        "OPEN_BLUETOOTH" -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+        "OPEN_DISPLAY" -> Intent(Settings.ACTION_DISPLAY_SETTINGS)
+        "OPEN_SOUND" -> Intent(Settings.ACTION_SOUND_SETTINGS)
+        "OPEN_BATTERY" -> Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
+        "OPEN_NOTIFICATIONS" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        "OPEN_SETTINGS" -> Intent(Settings.ACTION_SETTINGS)
+        "SHARE_TEXT" -> Intent.createChooser(
+            Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, step.argument),
+            "Share with…"
+        )
+        else -> null
     }
 
     private fun executeStepDescription(step: TrevorAutomationStep): String = "Action=" + step.action + if (step.argument.isBlank()) "" else " argument=" + step.argument.take(120)
