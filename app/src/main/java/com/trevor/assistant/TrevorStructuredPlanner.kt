@@ -22,7 +22,10 @@ object TrevorStructuredPlanner {
             if (step.action !in supportedActions) errors += "Step " + number + " uses unsupported action " + step.action + "."
             if (step.argument.length > MAX_ARGUMENT_CHARS) errors += "Step " + number + " argument is too long."
             if (step.action in argumentActions && step.argument.isBlank()) errors += "Step " + number + " requires an argument."
-            if (step.action !in verifiedActions && step.verify.isNotBlank()) errors += "Step " + number + " requests unsupported verification " + step.verify + "."
+            val allowedVerification = verificationContracts[step.action].orEmpty()
+            if (step.verify.isNotBlank() && step.verify !in allowedVerification) {
+                errors += "Step " + number + " requests unsupported verification " + step.verify + "."
+            }
         }
         return Validation(errors.isEmpty(), errors)
     }
@@ -58,10 +61,19 @@ object TrevorStructuredPlanner {
     }
 
     private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT")
-    private val verifiedActions = setOf(
-        "OPEN_WIFI", "OPEN_BLUETOOTH", "OPEN_DISPLAY", "OPEN_SOUND", "OPEN_BATTERY",
-        "OPEN_NOTIFICATIONS", "OPEN_SETTINGS", "OPEN_APP", "SHARE_TEXT", "COPY_TEXT",
-        "USAGE_SUMMARY", "BATTERY_STATUS"
+    private val verificationContracts = mapOf(
+        "OPEN_WIFI" to setOf("dispatch"),
+        "OPEN_BLUETOOTH" to setOf("dispatch"),
+        "OPEN_DISPLAY" to setOf("dispatch"),
+        "OPEN_SOUND" to setOf("dispatch"),
+        "OPEN_BATTERY" to setOf("dispatch"),
+        "OPEN_NOTIFICATIONS" to setOf("dispatch"),
+        "OPEN_SETTINGS" to setOf("dispatch"),
+        "OPEN_APP" to setOf("launch"),
+        "SHARE_TEXT" to setOf("dispatch"),
+        "COPY_TEXT" to setOf("clipboard"),
+        "USAGE_SUMMARY" to setOf("result"),
+        "BATTERY_STATUS" to setOf("result")
     )
-    private val supportedActions = verifiedActions
+    private val supportedActions = verificationContracts.keys
 }
