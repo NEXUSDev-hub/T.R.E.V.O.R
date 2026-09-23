@@ -54,17 +54,14 @@ object TrevorCore {
             TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
         }
 
-        if (learningEnabled &&
-            (clean.contains("routine", true) || clean.contains("habit", true) || clean.contains("pattern", true))
-        ) {
+        if (learningEnabled && smartIntent.kind == TrevorSmartCore.IntentKind.ROUTINE) {
             return finish(TrevorCoreResult.Answer(TrevorRoutineDiscovery.summary(context)))
         }
 
-        if (TrevorSettingsStore.load(context).usageIntelligenceEnabled &&
-            (clean.contains("usage", true) || clean.contains("phone use", true) || clean.contains("usage pattern", true))
-        ) {
+        if (learningEnabled && smartIntent.kind == TrevorSmartCore.IntentKind.USAGE) {
             return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
         }
+
         val resolvedMode = explicitlySelectedMode ?: smartIntent.suggestedMode
 
         val automation = if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION) {
