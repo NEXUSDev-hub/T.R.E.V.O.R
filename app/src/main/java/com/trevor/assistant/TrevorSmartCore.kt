@@ -143,8 +143,12 @@ object TrevorSmartCore {
     private fun scoreProject(text: String): Candidate {
         var score = 0
         val evidence = mutableListOf<String>()
-        listOf("project", "architecture", "roadmap", "implement", "develop", "prototype").forEach {
-            if (text.contains(it)) { score += 3; evidence += it }
+        listOf("project", "architecture", "roadmap", "prototype").forEach {
+            if (hasTerm(text, it)) { score += 3; evidence += it }
+        }
+        if (hasTerm(text, "implement", "develop")) {
+            score += if (hasTerm(text, "project", "architecture", "roadmap", "prototype")) 3 else 1
+            evidence += "development"
         }
         return Candidate(IntentKind.PROJECT, score, evidence)
     }
@@ -159,6 +163,7 @@ object TrevorSmartCore {
             if (pattern.containsMatchIn(text)) { score += 3; evidence += it.replace(' ', '-') }
         }
         if (questionLike) score = (score - 4).coerceAtLeast(0)
+        if (score > 0 && !hasActionTarget(text)) score = (score - 2).coerceAtLeast(0)
         return Candidate(IntentKind.AUTOMATION, score, evidence)
     }
 
@@ -184,6 +189,16 @@ object TrevorSmartCore {
     private fun isMultiStep(text: String): Boolean =
         Regex("""\b(then|after that|next|finally|step)\b""").findAll(text).count() >= 2
 
+    private fun hasActionTarget(text: String): Boolean =
+        Regex("""\b(on|off|wifi|bluetooth|display|sound|battery|notifications|settings|app|application|text|clipboard)\b""")
+            .containsMatchIn(text) || text.split(Regex("""\s+""")).size >= 3
+
+    private fun hasTerm(text: String, vararg terms: String): Boolean =
+        terms.any { term ->
+            if (term.contains(' ')) text.contains(term)
+            else java.util.regex.Pattern.compile("\\b" + java.util.regex.Pattern.quote(term) + "\\b")
+                .matcher(text).find()
+        }
+
     private fun containsAny(text: String, vararg values: String): Boolean =
-        values.any { text.contains(it) }
-}
+        values.any { value -> if (value.contains(' ')) text.contains(value) else hasTerm(text, value) }
