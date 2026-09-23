@@ -37,7 +37,7 @@ object TrevorAutomationNotificationHelper {
         )
         val snooze = PendingIntent.getBroadcast(
             context, task.id.hashCode() + 1,
-            Intent(context, TrevorTaskActionReceiver::class.java)
+            Intent(context, TrevorAutomationTaskActionReceiver::class.java)
                 .setAction(ACTION_SNOOZE)
                 .putExtra(EXTRA_TASK_ID, task.id)
                 .putExtra(EXTRA_DELAY_MILLIS, 15L * 60L * 1000L),
