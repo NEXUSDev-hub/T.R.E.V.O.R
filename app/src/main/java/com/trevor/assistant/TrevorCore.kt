@@ -225,10 +225,6 @@ object TrevorCore {
             }
         }.take(MAX_ENRICHED_CHARS)
 
-        if (mode == TrevorMode.RESEARCH) {
-            // Research stays on the same provider-routing path so rate limits,
-            // fallback rules, identity directive and failure tracking are consistent.
-        }
         val result = TrevorMultiProviderRouter.ask(
             context = context.applicationContext,
             prompt = enriched,
