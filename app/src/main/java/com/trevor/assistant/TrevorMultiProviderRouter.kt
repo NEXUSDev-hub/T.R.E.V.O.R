@@ -13,7 +13,8 @@ object TrevorMultiProviderRouter {
         context: Context,
         prompt: String,
         preferred: TrevorProviderId? = TrevorProviderId.GEMINI,
-        forceAdvanced: Boolean = false
+        forceAdvanced: Boolean = false,
+        useGoogleSearch: Boolean = false
     ): Result<String> {
         val key = SecureApiKeyStore.load(context)
             ?: TrevorProviderKeyStore.load(context, TrevorProviderId.GEMINI)
@@ -35,7 +36,8 @@ object TrevorMultiProviderRouter {
             context = context.applicationContext,
             apiKey = key,
             prompt = TrevorIdentity.IMMUTABLE_DIRECTIVE + "\n\n" + prompt,
-            model = model
+            model = model,
+            useGoogleSearch = useGoogleSearch
         )
 
         if (result.isFailure) {
@@ -57,7 +59,8 @@ object TrevorMultiProviderRouter {
                         context = context.applicationContext,
                         apiKey = key,
                         prompt = TrevorIdentity.IMMUTABLE_DIRECTIVE + "\n\n" + prompt,
-                        model = GeminiAiProvider.NORMAL_MODEL
+                        model = GeminiAiProvider.NORMAL_MODEL,
+                        useGoogleSearch = useGoogleSearch
                     )
                     if (result.isFailure) {
                         TrevorProviderLimitTracker.recordFailure(
@@ -80,12 +83,20 @@ object TrevorMultiProviderRouter {
         val key = SecureApiKeyStore.load(context)
             ?: TrevorProviderKeyStore.load(context, TrevorProviderId.GEMINI)
             ?: return Result.failure(IllegalStateException("Gemini API key is not configured."))
-        return GeminiAiProvider.ask(
+        if (!TrevorProviderLimitTracker.allow(context, TrevorProviderId.GEMINI)) {
+            return Result.failure(IllegalStateException("Gemini is temporarily rate-limited. Please retry after the cooldown."))
+        }
+        TrevorProviderLimitTracker.recordRequest(context, TrevorProviderId.GEMINI)
+        val result = GeminiAiProvider.ask(
             context.applicationContext,
             key,
             prompt,
             model = GeminiAiProvider.NORMAL_MODEL
         )
+        if (result.isFailure) {
+            TrevorProviderLimitTracker.recordFailure(context, TrevorProviderId.GEMINI, result.exceptionOrNull())
+        }
+        return result
     }
 }
 
