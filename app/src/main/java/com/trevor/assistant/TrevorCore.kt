@@ -40,6 +40,15 @@ object TrevorCore {
 
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
         val learningEnabled = TrevorSettingsStore.load(context).usageIntelligenceEnabled
+        val explicitlySelectedMode = mode
+        val smartIntent = TrevorSmartCore.understand(
+            context = context.applicationContext,
+            input = clean,
+            mode = explicitlySelectedMode,
+            attachmentPresent = attachment != null,
+            aiEnabled = aiEnabled,
+            geminiEnabled = geminiEnabled
+        )
         if (learningEnabled) {
             TrevorBehaviorLearning.sync(context)
             TrevorDeviceContextLearning.recordCurrentForegroundContext(context)
@@ -56,15 +65,6 @@ object TrevorCore {
         ) {
             return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
         }
-        val explicitlySelectedMode = mode
-        val smartIntent = TrevorSmartCore.understand(
-            context = context.applicationContext,
-            input = clean,
-            mode = explicitlySelectedMode,
-            attachmentPresent = attachment != null,
-            aiEnabled = aiEnabled,
-            geminiEnabled = geminiEnabled
-        )
         val resolvedMode = explicitlySelectedMode ?: smartIntent.suggestedMode
 
         val automation = if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION) {
