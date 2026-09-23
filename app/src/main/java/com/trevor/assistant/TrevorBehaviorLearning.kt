@@ -154,7 +154,8 @@ object TrevorBehaviorLearning {
 
             // A long gap starts a new usage session and prevents a sequence from
             // accidentally joining two unrelated periods of phone use.
-            if (lastTimestamp > 0L && timestamp - lastTimestamp > SESSION_GAP_MS) {
+            val newSession = lastTimestamp <= 0L || timestamp - lastTimestamp > SESSION_GAP_MS
+            if (newSession) {
                 sequence.clear()
                 lastPackage = ""
             }
@@ -176,31 +177,36 @@ object TrevorBehaviorLearning {
             val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
             val hourBucket = calendar.get(Calendar.HOUR_OF_DAY) / 2
             val weekday = calendar.get(Calendar.DAY_OF_WEEK)
-            val sessionKey = sessionKey(pkg, hourBucket, weekday)
-            val oldSession = sessions[sessionKey]
-            val sessionObservations = (oldSession?.observations ?: 0) + 1
-            sessions[sessionKey] = SessionPattern(
-                pkg,
-                hourBucket,
-                weekday,
-                sessionObservations,
-                timestamp,
-                confidence(sessionObservations, timestamp)
-            )
-            sessionUpdates++
 
-            // Collapse only consecutive duplicate app resumes. A -> B -> A stays A -> B -> A.
-            if (sequence.isEmpty() || sequence.last().first != pkg) {
+            if (newSession) {
+                val sessionKey = sessionKey(pkg, hourBucket, weekday)
+                val oldSession = sessions[sessionKey]
+                val sessionObservations = (oldSession?.observations ?: 0) + 1
+                sessions[sessionKey] = SessionPattern(
+                    pkg,
+                    hourBucket,
+                    weekday,
+                    sessionObservations,
+                    timestamp,
+                    confidence(sessionObservations, timestamp)
+                )
+                sessionUpdates++
+            }
+
+            // A duplicate ACTIVITY_RESUMED for the same app does not create
+            // another routine occurrence. Only an actual sequence transition
+            // advances routine learning.
+            val sequenceChanged = sequence.isEmpty() || sequence.last().first != pkg
+            if (sequenceChanged) {
                 sequence += pkg to timestamp
             } else {
                 sequence[sequence.lastIndex] = pkg to timestamp
             }
             while (sequence.size > MAX_SEQUENCE_LENGTH) sequence.removeAt(0)
 
-            // Part 3 discovery counts only newly completed suffixes. The previous
-            // implementation re-counted every older subsequence on every event,
-            // inflating observations for long-running sessions.
-            routineUpdates += discoverRoutines(routines, sequence, timestamp)
+            if (sequenceChanged) {
+                routineUpdates += discoverRoutines(routines, sequence, timestamp)
+            }
 
             lastTimestamp = timestamp
             lastPackage = pkg
