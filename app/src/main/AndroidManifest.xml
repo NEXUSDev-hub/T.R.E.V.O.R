@@ -35,6 +35,10 @@
         <receiver
             android:name=".TrevorTaskActionReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".TrevorAutomationTaskActionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>
