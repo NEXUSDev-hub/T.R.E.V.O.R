@@ -128,6 +128,18 @@ object TrevorDynamicProactiveIntelligence {
             .apply()
     }
 
+    fun markDismissed(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putLong(
+                LAST_DELIVERED,
+                System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(20)
+            )
+            .putString(LAST_FINGERPRINT, "dismissed")
+            .putString(LAST_TRIGGER, "DISMISSED")
+            .apply()
+    }
+
     fun summary(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return "Adaptive proactive gate: daily cap=" + MAX_DAILY_NOTIFICATIONS +
