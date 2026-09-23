@@ -15,6 +15,9 @@ class TrevorAutomationWorker(
         return try {
             val result = TrevorAutomationEngine.executeDetailed(applicationContext, task.plan)
             TrevorStateStore.update { it.copy(lastOutput = result.message) }
+            TrevorAutomationEngine.loadTask(applicationContext, taskId)?.let {
+                TrevorAutomationNotificationHelper.show(applicationContext, it, result.message)
+            }
 
             when {
                 result.cancelled || result.completed -> Result.success()
