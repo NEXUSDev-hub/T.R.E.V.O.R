@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-class TrevorTaskActionReceiver : BroadcastReceiver() {
+class TrevorAutomationTaskActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val taskId = intent.getStringExtra(TrevorAutomationNotificationHelper.EXTRA_TASK_ID) ?: return
         when (intent.action) {
