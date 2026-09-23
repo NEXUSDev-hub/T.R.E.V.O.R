@@ -21,46 +21,28 @@ object TrevorProactiveDecisionEngine {
     private const val LAST_FINGERPRINT = "last_fingerprint"
     private const val LAST_REASON = "last_reason"
 
-    fun decide(context: Context, pending: List<TrevorTask>, recent: List<TrevorConversationMessage>): Decision {
+    fun decide(
+        context: Context,
+        pending: List<TrevorTask>,
+        recent: List<TrevorConversationMessage>
+    ): Decision {
         val settings = TrevorSettingsStore.load(context)
-        val now = System.currentTimeMillis()
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!settings.proactiveEnabled || !settings.backgroundNotifications || !settings.proactiveNotifications) return silent("proactive notifications disabled")
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        if (settings.quietHours && (hour >= 22 || hour < 7)) return silent("quiet hours")
-
-        val device = TrevorDeviceContextLearning.snapshot(context)
-        val routines = if (settings.usageIntelligenceEnabled) TrevorRoutineDiscovery.suggestions(context).take(3) else emptyList()
-        val overdue = pending.count { it.triggerAt <= now && it.status != "COMPLETED" }
-        val dueSoon = pending.count { it.status != "COMPLETED" && it.triggerAt > now && it.triggerAt <= now + TimeUnit.MINUTES.toMillis(30) }
-        val recentContext = recent.takeLast(6)
-        val routineSignal = routines.firstOrNull()?.confidence ?: 0.0
-
-        var score = 0.0
-        if (overdue > 0) score += 0.72
-        if (dueSoon > 0) score += 0.62
-        if (pending.any { it.status == "NOTIFIED" }) score += 0.25
-        if (recentContext.isNotEmpty()) score += 0.10
-        score += routineSignal * 0.18
-        if (!device.screenInteractive) score -= 0.08
-
-        val reason = when {
-            overdue > 0 -> "overdue task"
-            dueSoon > 0 -> "task due soon"
-            pending.any { it.status == "NOTIFIED" } -> "unresolved notification"
-            routineSignal >= 0.65 -> "strong learned routine/context match"
-            recentContext.isNotEmpty() && settings.personality != TrevorPersonality.PROFESSIONAL -> "recent conversation context"
-            else -> "no sufficiently relevant trigger"
+        val routines = if (settings.usageIntelligenceEnabled) {
+            TrevorRoutineDiscovery.suggestions(context).take(3)
+        } else {
+            emptyList()
         }
-        val contextText = buildContext(context, pending, recentContext, routines, overdue, dueSoon, reason)
-        val fingerprint = fingerprint(contextText)
-        val lastAt = prefs.getLong(LAST_AT, 0L)
-        val minimumGap = if (overdue > 0 || dueSoon > 0) TimeUnit.MINUTES.toMillis(15) else TimeUnit.SECONDS.toMillis(settings.spontaneousFrequencySeconds.toLong())
-        if (now - lastAt < minimumGap) return silent("cooldown active")
-        if (prefs.getString(LAST_FINGERPRINT, null) == fingerprint) return silent("duplicate context")
-
-        val threshold = if (settings.personality == TrevorPersonality.PROFESSIONAL) 0.70 else 0.62
-        return if (score >= threshold) Decision(Action.GENERATE, score.coerceIn(0.0, 1.0), reason, fingerprint, contextText) else silent(reason)
+        val gate = TrevorDynamicProactiveIntelligence.evaluate(context, pending, routines)
+        if (!gate.shouldNotify) {
+            return silent(gate.reason)
+        }
+        return Decision(
+            action = Action.GENERATE,
+            score = gate.score,
+            reason = gate.reason,
+            fingerprint = gate.fingerprint,
+            context = gate.context
+        )
     }
 
     suspend fun generate(context: Context, decision: Decision, pending: List<TrevorTask>, recent: List<TrevorConversationMessage>): String {
@@ -84,9 +66,18 @@ object TrevorProactiveDecisionEngine {
     }
 
     fun markDelivered(context: Context, decision: Decision) {
+        TrevorDynamicProactiveIntelligence.markDelivered(
+            context,
+            TrevorDynamicProactiveIntelligence.Gate(
+                shouldNotify = decision.action == Action.GENERATE,
+                score = decision.score,
+                trigger = null,
+                reason = decision.reason,
+                fingerprint = decision.fingerprint,
+                context = decision.context
+            )
+        )
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putLong(LAST_AT, System.currentTimeMillis())
-            .putString(LAST_FINGERPRINT, decision.fingerprint)
             .putString(LAST_REASON, decision.reason)
             .apply()
     }
