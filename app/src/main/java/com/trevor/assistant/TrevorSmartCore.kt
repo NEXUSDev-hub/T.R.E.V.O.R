@@ -48,8 +48,8 @@ object TrevorSmartCore {
     fun shouldUseAdvanced(input: String, mode: TrevorMode? = null, attachmentPresent: Boolean = false): Boolean =
         classify(input, mode, attachmentPresent).needsAdvancedModel
 
-    fun instruction(input: String, mode: TrevorMode, attachmentPresent: Boolean = false): String {
-        val i = classify(input, mode, attachmentPresent)
+    fun instruction(input: String, mode: TrevorMode, attachmentPresent: Boolean = false, understood: Intent? = null): String {
+        val i = understood ?: classify(input, mode, attachmentPresent)
         return "Intent=${i.kind.name}; confidence=${"%.2f".format(Locale.ROOT, i.confidence)}; " +
             "freshInformation=${i.needsFreshInformation}; advancedReasoning=${i.needsAdvancedModel}."
     }
