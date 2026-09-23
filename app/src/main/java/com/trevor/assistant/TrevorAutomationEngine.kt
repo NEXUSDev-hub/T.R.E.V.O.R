@@ -113,6 +113,13 @@ object TrevorAutomationEngine {
             ExistingWorkPolicy.KEEP,
             request
         )
+        loadTask(context, plan.id)?.let {
+            TrevorAutomationNotificationHelper.show(
+                context,
+                it,
+                if (delay == 0L) "Queued and ready to execute." else "Scheduled for later."
+            )
+        }
         return request.id
     }
 
