@@ -21,6 +21,7 @@ object TrevorNotificationCenter {
     const val TASK_ID = "task_id"
     const val ACTION_DONE = "com.trevor.assistant.TASK_DONE"
     const val ACTION_SNOOZE = "com.trevor.assistant.TASK_SNOOZE"
+    const val ACTION_DISMISS = "com.trevor.assistant.PROACTIVE_DISMISS"
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= 26) {
@@ -47,6 +48,13 @@ object TrevorNotificationCenter {
             .setContentIntent(open)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+        val dismiss = PendingIntent.getBroadcast(
+            context, (task?.id?.hashCode() ?: 17) + 2,
+            Intent(ACTION_DISMISS),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Not now", dismiss)
 
         task?.let {
             val done = PendingIntent.getBroadcast(
@@ -168,6 +176,7 @@ class TrevorTaskActionReceiver : BroadcastReceiver() {
                 when (intent.action) {
                     TrevorNotificationCenter.ACTION_DONE -> TrevorTaskEngine.complete(context, id)
                     TrevorNotificationCenter.ACTION_SNOOZE -> TrevorTaskEngine.snooze(context, id)
+                    TrevorNotificationCenter.ACTION_DISMISS -> TrevorDynamicProactiveIntelligence.markDismissed(context)
                 }
             } finally {
                 pending.finish()
