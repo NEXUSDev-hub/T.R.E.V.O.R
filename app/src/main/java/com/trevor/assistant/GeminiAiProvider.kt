@@ -112,6 +112,8 @@ object GeminiAiProvider {
 
             if (answer.isBlank()) Result.failure(RuntimeException("Gemini returned an empty response."))
             else Result.success(answer)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(RuntimeException(e.message ?: "Unable to connect to Gemini.", e))
         } finally {
