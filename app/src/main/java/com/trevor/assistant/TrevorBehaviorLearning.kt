@@ -724,7 +724,11 @@ object TrevorBehaviorLearning {
                 o.optInt("observations").coerceAtLeast(0),
                 o.optLong("lastSeen"),
                 o.optDouble("confidence").coerceIn(0.0, 1.0),
-                o.optBoolean("approved", false)
+                o.optBoolean("approved", false),
+                o.optInt("distinctDays", 0),
+                o.optInt("distinctSessions", 0),
+                readJsonStringList(o.optJSONArray("evidenceDays")),
+                readJsonLongList(o.optJSONArray("evidenceSessions"))
             )
         }
         return out
@@ -746,6 +750,10 @@ object TrevorBehaviorLearning {
                     .put("lastSeen", it.lastSeen)
                     .put("confidence", it.confidence)
                     .put("approved", it.approved)
+                    .put("distinctDays", it.distinctDays)
+                    .put("distinctSessions", it.distinctSessions)
+                    .put("evidenceDays", JSONArray(it.evidenceDays))
+                    .put("evidenceSessions", JSONArray(it.evidenceSessions))
             )
         }
         prefs.edit().putString(ROUTINES, array.toString()).apply()
