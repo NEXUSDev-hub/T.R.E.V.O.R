@@ -16,6 +16,7 @@ object TrevorSmartCore {
         val needsFreshInformation: Boolean,
         val needsAdvancedModel: Boolean,
         val suggestedMode: TrevorMode = TrevorMode.NORMAL,
+        val automationSteps: List<TrevorAutomationStep> = emptyList(),
         val evidence: List<String> = emptyList()
     )
 
@@ -35,8 +36,7 @@ object TrevorSmartCore {
         if (mode != null && mode != TrevorMode.NORMAL && mode != TrevorMode.RATIO_SHIFTER) {
             return@withContext fallback.copy(confidence = 0.99, suggestedMode = mode, evidence = listOf("explicit-mode"))
         }
-        val key = SecureApiKeyStore.load(context).orEmpty()
-        if (key.isBlank()) return@withContext fallback
+        if (SecureApiKeyStore.load(context).isNullOrBlank()) return@withContext fallback
         val prompt = "Understand this request by meaning rather than keyword matching. Request: ${input.take(8000)}" +
             if (attachmentPresent) "\nAn attachment is present." else ""
         TrevorMultiProviderRouter.classifyIntent(context, prompt).fold(
@@ -61,17 +61,37 @@ object TrevorSmartCore {
         val fresh = json.optBoolean("needsFreshInformation", kind == IntentKind.RESEARCH)
         val advanced = attachmentPresent || json.optBoolean("needsAdvancedModel", kind in setOf(IntentKind.RESEARCH, IntentKind.ANALYSIS, IntentKind.PROJECT, IntentKind.TERMINAL))
         val modelMode = runCatching { TrevorMode.valueOf(json.optString("mode", TrevorMode.NORMAL.name).uppercase(Locale.ROOT)) }.getOrDefault(fallback.suggestedMode)
-        Intent(kind, confidence, fresh, advanced, explicitMode ?: modelMode, listOf("natural-language-model"))
+        val actions = json.optJSONArray("actions")?.let { array ->
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    add(
+                        TrevorAutomationStep(
+                            action = item.optString("action").uppercase(Locale.ROOT),
+                            argument = item.optString("argument"),
+                            requiresForeground = item.optBoolean("requiresForeground", false),
+                            verify = item.optString("verify")
+                        )
+                    )
+                }
+            }
+        }.orEmpty()
+        val safeActions = actions.take(20).filter {
+            TrevorStructuredPlanner.validate(
+                TrevorAutomationPlan("semantic", listOf(it), "semantic")
+            ).valid
+        }
+        Intent(kind, confidence, fresh, advanced, explicitMode ?: modelMode, safeActions, listOf("natural-language-model"))
     }.getOrElse { fallback }
 
     private fun deterministicFallback(input: String, mode: TrevorMode?, attachmentPresent: Boolean): Intent {
         val text = input.trim().lowercase(Locale.ROOT)
-        if (text.isBlank()) return Intent(IntentKind.GENERAL, 1.0, false, attachmentPresent, mode ?: TrevorMode.NORMAL, listOf("blank-input"))
+        if (text.isBlank()) return Intent(IntentKind.GENERAL, 1.0, false, attachmentPresent, mode ?: TrevorMode.NORMAL, emptyList(), listOf("blank-input"))
         val explicit = when (mode) {
-            TrevorMode.TERMINAL -> Intent(IntentKind.TERMINAL, .99, false, true, TrevorMode.TERMINAL, listOf("explicit-mode"))
-            TrevorMode.RESEARCH -> Intent(IntentKind.RESEARCH, .99, true, true, TrevorMode.RESEARCH, listOf("explicit-mode"))
-            TrevorMode.ANALYSE -> Intent(IntentKind.ANALYSIS, .99, false, true, TrevorMode.ANALYSE, listOf("explicit-mode"))
-            TrevorMode.PROJECT -> Intent(IntentKind.PROJECT, .99, false, true, TrevorMode.PROJECT, listOf("explicit-mode"))
+            TrevorMode.TERMINAL -> Intent(IntentKind.TERMINAL, .99, false, true, TrevorMode.TERMINAL, emptyList(), listOf("explicit-mode"))
+            TrevorMode.RESEARCH -> Intent(IntentKind.RESEARCH, .99, true, true, TrevorMode.RESEARCH, emptyList(), listOf("explicit-mode"))
+            TrevorMode.ANALYSE -> Intent(IntentKind.ANALYSIS, .99, false, true, TrevorMode.ANALYSE, emptyList(), listOf("explicit-mode"))
+            TrevorMode.PROJECT -> Intent(IntentKind.PROJECT, .99, false, true, TrevorMode.PROJECT, emptyList(), listOf("explicit-mode"))
             else -> null
         }
         if (explicit != null) return explicit.copy(suggestedMode = mode ?: TrevorMode.NORMAL)
@@ -96,6 +116,6 @@ object TrevorSmartCore {
             IntentKind.TERMINAL -> TrevorMode.TERMINAL
             else -> TrevorMode.NORMAL
         }
-        return Intent(kind, .62, fresh, advanced, suggestedMode, listOf("offline-fallback"))
+        return Intent(kind, .62, fresh, advanced, suggestedMode, emptyList(), listOf("offline-fallback"))
     }
 }
