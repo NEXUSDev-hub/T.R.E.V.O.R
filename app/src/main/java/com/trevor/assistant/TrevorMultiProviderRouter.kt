@@ -1,14 +1,26 @@
-package com.trevor.assistant
-
-import android.content.Context
-
-/**
- * Compatibility name retained for existing call sites.
- * TREVOR now has one provider (Google Gemini) and automatically chooses
- * the model locally: 3.6 Flash for ordinary requests and 3.8 Flash for
- * complex/agentic requests.
- */
 object TrevorMultiProviderRouter {
+    suspend fun classifyIntent(context: Context, prompt: String): Result<String> {
+        val key = SecureApiKeyStore.load(context)
+            ?: TrevorProviderKeyStore.load(context, TrevorProviderId.GEMINI)
+            ?: return Result.failure(IllegalStateException("Gemini API key is not configured."))
+        if (key.isBlank()) return Result.failure(IllegalStateException("Gemini API key is not configured."))
+        if (!TrevorProviderLimitTracker.allow(context, TrevorProviderId.GEMINI)) {
+            return Result.failure(IllegalStateException("Gemini is temporarily rate-limited. Please retry after the cooldown."))
+        }
+        TrevorProviderLimitTracker.recordRequest(context, TrevorProviderId.GEMINI)
+        val result = GeminiAiProvider.classifyIntent(
+            context.applicationContext,
+            key,
+            TrevorIdentity.IMMUTABLE_DIRECTIVE + "\n\n" + prompt,
+            model = GeminiAiProvider.NORMAL_MODEL
+        )
+        if (result.isFailure) {
+            TrevorProviderLimitTracker.recordFailure(context, TrevorProviderId.GEMINI, result.exceptionOrNull())
+        }
+        return result
+    }
+
+
     suspend fun ask(
         context: Context,
         prompt: String,
