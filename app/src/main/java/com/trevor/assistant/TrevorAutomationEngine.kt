@@ -26,6 +26,11 @@ enum class TrevorAutomationTaskState {
 data class TrevorAutomationStep(
     val action: String,
     val argument: String = "",
+    /**
+     * Requires an interactive device at execution time. TREVOR does not
+     * interpret this as permission to bypass Android lock-screen/security
+     * boundaries or force itself into the foreground.
+     */
     val requiresForeground: Boolean = false,
     val verify: String = ""
 )
@@ -87,15 +92,12 @@ object TrevorAutomationEngine {
         validate(plan).getOrThrow()
         val delay = delayMillis.coerceIn(0L, MAX_DELAY_MILLIS)
         val now = System.currentTimeMillis()
-        saveTask(
-            context,
-            TrevorAutomationTask(
-                plan.id, plan.title, plan, TrevorAutomationTaskState.PLANNED, 0, 0,
-                if (delay == 0L) now else now + delay
-            )
+        val initialTask = TrevorAutomationTask(
+            plan.id, plan.title, plan, TrevorAutomationTaskState.PLANNED, 0, 0,
+            if (delay == 0L) now else now + delay
         )
-        saveTask(context, loadTask(context, plan.id)!!.copy(state = TrevorAutomationTaskState.VALIDATED))
-        saveTask(context, loadTask(context, plan.id)!!.copy(state = TrevorAutomationTaskState.QUEUED))
+        saveTask(context, initialTask)
+        saveTask(context, initialTask.copy(state = TrevorAutomationTaskState.VALIDATED))
 
         val request = OneTimeWorkRequestBuilder<TrevorAutomationWorker>()
             .setInputData(Data.Builder().putString("task_id", plan.id).build())
@@ -108,11 +110,27 @@ object TrevorAutomationEngine {
             .addTag(WORK_PREFIX + plan.id)
             .build()
 
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WORK_PREFIX + plan.id,
-            ExistingWorkPolicy.KEEP,
-            request
+        try {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_PREFIX + plan.id,
+                ExistingWorkPolicy.KEEP,
+                request
+            )
+        } catch (error: Throwable) {
+            saveTask(
+                context,
+                loadTask(context, plan.id)?.copy(state = TrevorAutomationTaskState.FAILED)
+                    ?: initialTask.copy(state = TrevorAutomationTaskState.FAILED)
+            )
+            throw error
+        }
+
+        saveTask(
+            context,
+            loadTask(context, plan.id)?.copy(state = TrevorAutomationTaskState.QUEUED)
+                ?: initialTask.copy(state = TrevorAutomationTaskState.QUEUED)
         )
+
         loadTask(context, plan.id)?.let {
             TrevorAutomationNotificationHelper.show(
                 context,
@@ -142,6 +160,8 @@ object TrevorAutomationEngine {
     fun snooze(context: Context, taskId: String, delayMillis: Long): UUID? {
         val task = loadTask(context, taskId) ?: return null
         if (task.state == TrevorAutomationTaskState.COMPLETED || task.state == TrevorAutomationTaskState.CANCELLED) return null
+
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_PREFIX + taskId)
         return enqueue(context, task.plan, delayMillis)
     }
 
