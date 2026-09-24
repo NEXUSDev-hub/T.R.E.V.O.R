@@ -86,12 +86,24 @@ object TrevorCore {
         // UI goals use the offline perception/action loop instead of requiring a
         // pre-written sequence of clicks. This lets TREVOR inspect, scroll, click,
         // re-inspect and recover using local screen semantics + OCR.
+        val fastUi = explicitlyRequestsFastUi(clean)
         if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION &&
             looksLikeUiGoal(clean) &&
             TrevorAccessibilityService.instance != null
         ) {
-            val uiResult = TrevorOfflineUiAgent.pursueGoal(context, clean)
+            val uiResult = TrevorOfflineUiAgent.pursueGoal(context, clean, fast = fastUi)
             if (uiResult.isSuccess) return finish(TrevorCoreResult.Answer(uiResult.getOrThrow()))
+        }
+
+        if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION &&
+            looksLikeUiInput(clean) &&
+            TrevorAccessibilityService.instance != null
+        ) {
+            val value = extractUiInput(clean)
+            if (value.isNotBlank()) {
+                val inputResult = TrevorUiInputAgent.enter(context, value)
+                if (inputResult.isSuccess) return finish(TrevorCoreResult.Answer(inputResult.getOrThrow()))
+            }
         }
 
         if (automation != null) {
@@ -304,6 +316,21 @@ object TrevorCore {
             input.take(4_000),
             "Never claim an action was performed unless it was actually performed and verified."
         ).filter { it.isNotBlank() }.joinToString("\n")
+    }
+
+    private fun explicitlyRequestsFastUi(input: String): Boolean {
+        val s = input.lowercase()
+        return listOf("fast", "quickly", "quick", "fast mode", "use direct launch", "launch directly").any { s.contains(it) }
+    }
+
+    private fun looksLikeUiInput(input: String): Boolean {
+        val s = input.lowercase()
+        return listOf("type ", "enter ", "write ", "input ").any { s.contains(it) }
+    }
+
+    private fun extractUiInput(input: String): String {
+        val m = Regex("""(?:type|enter|write|input)\\s+(.+)$""", RegexOption.IGNORE_CASE).find(input.trim())
+        return m?.groupValues?.getOrNull(1)?.trim()?.removeSurrounding(""")?.removeSurrounding("'").orEmpty()
     }
 
     private fun looksLikeUiGoal(input: String): Boolean {
