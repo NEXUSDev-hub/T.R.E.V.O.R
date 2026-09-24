@@ -46,11 +46,11 @@ object TrevorOfflineUiAgent {
                 val direction = scrollDirection(goal)
                 val w = observation.width
                 val h = observation.height
-                val swiped = if (direction > 0)
+                val swiped = if (!semanticScrolled && direction > 0)
                     service.swipe(w / 2, (h * .78f).toInt(), w / 2, (h * .28f).toInt())
                 else
                     service.swipe(w / 2, (h * .28f).toInt(), w / 2, (h * .78f).toInt())
-                if (swiped) delay(WAIT_MS)
+                if (!semanticScrolled && swiped) delay(WAIT_MS)
             } else {
                 delay(WAIT_MS)
             }
