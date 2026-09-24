@@ -11,17 +11,21 @@ data class TrevorModeContract(
 
 object TrevorModeRegistry {
     private val contracts = mapOf(
-        TrevorMode.NORMAL to TrevorModeContract(TrevorMode.NORMAL,"Normal",true,false,false),
-        TrevorMode.ANALYSE to TrevorModeContract(TrevorMode.ANALYSE,"Analyse",true,false,false),
-        TrevorMode.RESEARCH to TrevorModeContract(TrevorMode.RESEARCH,"Research",true,false,true),
-        TrevorMode.PROJECT to TrevorModeContract(TrevorMode.PROJECT,"Project",true,false,false),
-        TrevorMode.RATIO_SHIFTER to TrevorModeContract(TrevorMode.RATIO_SHIFTER,false,true,false),
-        TrevorMode.TERMINAL to TrevorModeContract(TrevorMode.TERMINAL,true,true,false)
+        TrevorMode.NORMAL to TrevorModeContract(TrevorMode.NORMAL, "Normal", true, false, false),
+        TrevorMode.ANALYSE to TrevorModeContract(TrevorMode.ANALYSE, "Analyse", true, false, false),
+        TrevorMode.RESEARCH to TrevorModeContract(TrevorMode.RESEARCH, "Research", true, false, true),
+        TrevorMode.PROJECT to TrevorModeContract(TrevorMode.PROJECT, "Project", true, false, false),
+        TrevorMode.RATIO_SHIFTER to TrevorModeContract(TrevorMode.RATIO_SHIFTER, "Ratio Shifter", false, false, false),
+        TrevorMode.TERMINAL to TrevorModeContract(TrevorMode.TERMINAL, "Terminal", false, true, false)
     )
+
     fun contract(mode: TrevorMode): TrevorModeContract = contracts.getValue(mode)
+
     fun validate(mode: TrevorMode, attachment: TrevorAttachment?): Result<Unit> {
         val c = contract(mode)
-        if (attachment != null && !c.acceptsAttachments) return Result.failure(IllegalArgumentException("This mode does not accept attachments."))
+        if (attachment != null && !c.acceptsAttachments) {
+            return Result.failure(IllegalArgumentException("This mode does not accept attachments."))
+        }
         return Result.success(Unit)
     }
 }
