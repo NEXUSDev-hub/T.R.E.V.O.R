@@ -77,10 +77,12 @@ class TrevorScreenCaptureService : Service() {
                     localReader.surface, null, null
                 ) ?: return@launch
                 val image = withTimeoutOrNull(3000) {
-                    while (true) {
-                        localReader.acquireLatestImage()?.let { break it }
-                        delay(40)
+                    var captured: android.media.Image? = null
+                    while (captured == null) {
+                        captured = localReader.acquireLatestImage()
+                        if (captured == null) delay(40)
                     }
+                    captured
                 }
                 if (image != null) {
                     val plane = image.planes[0]
