@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         TrevorBackgroundScheduler.ensureScheduled(this)
+        TrevorBackgroundRecovery.schedule(this)
         window.statusBarColor = android.graphics.Color.rgb(5, 15, 26)
         window.navigationBarColor = android.graphics.Color.rgb(5, 15, 26)
         window.decorView.systemUiVisibility = 0
