@@ -37,6 +37,27 @@ class TrevorAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         lastPackage = event?.packageName?.toString().orEmpty()
+        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED &&
+            TrevorUiLearning.isTeaching(applicationContext)
+        ) {
+            val node = event.source
+            if (node != null) {
+                val r = Rect()
+                node.getBoundsInScreen(r)
+                TrevorUiLearning.appendTeachingStep(
+                    applicationContext,
+                    TrevorUiLearning.UiStep(
+                        action = "CLICK",
+                        targetText = node.text?.toString()?.trim().orEmpty().take(160),
+                        contentDescription = node.contentDescription?.toString()?.trim().orEmpty().take(160),
+                        packageName = node.packageName?.toString().orEmpty(),
+                        x = r.centerX(),
+                        y = r.centerY()
+                    )
+                )
+                node.recycle()
+            }
+        }
     }
 
     override fun onInterrupt() = Unit
