@@ -366,6 +366,32 @@ object TrevorAutomationEngine {
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("TREVOR", step.argument))
                 StepExecution(true, "OK • copied text to clipboard", false)
             }
+            "UI_CLICK" -> {
+                val service = TrevorAccessibilityService.instance
+                    ?: return@runCatching StepExecution(false, "FAIL • Accessibility service is not enabled.", false)
+                if (service.clickText(step.argument))
+                    StepExecution(true, "OK • clicked visible UI target: " + step.argument, false)
+                else StepExecution(false, "FAIL • UI target not found: " + step.argument, true)
+            }
+            "UI_CLICK_DESCRIPTION" -> {
+                val service = TrevorAccessibilityService.instance
+                    ?: return@runCatching StepExecution(false, "FAIL • Accessibility service is not enabled.", false)
+                if (service.clickDescription(step.argument))
+                    StepExecution(true, "OK • clicked UI description: " + step.argument, false)
+                else StepExecution(false, "FAIL • UI description not found: " + step.argument, true)
+            }
+            "UI_SWIPE" -> {
+                val service = TrevorAccessibilityService.instance
+                    ?: return@runCatching StepExecution(false, "FAIL • Accessibility service is not enabled.", false)
+                val p = step.argument.split(",").mapNotNull { it.trim().toFloatOrNull() }
+                if (p.size == 4) {
+                    val dm = context.resources.displayMetrics
+                    val ok = service.swipe((p[0]*dm.widthPixels).toInt(), (p[1]*dm.heightPixels).toInt(),
+                        (p[2]*dm.widthPixels).toInt(), (p[3]*dm.heightPixels).toInt())
+                    if (ok) StepExecution(true, "OK • swipe dispatched", false)
+                    else StepExecution(false, "FAIL • swipe dispatch rejected", true)
+                } else StepExecution(false, "FAIL • invalid swipe coordinates", false)
+            }
             "OPEN_APP" -> {
                 val packageName = resolvePackage(context, step.argument)
                     ?: return@runCatching StepExecution(false, "FAIL • Could not resolve app: " + step.argument, false)
@@ -402,6 +428,13 @@ object TrevorAutomationEngine {
             "BATTERY_STATUS" -> TrevorLocalIntelligence.answer(context, "battery") != null
             else -> false
         }
+        "ui" -> TrevorAccessibilityService.instance != null &&
+            when (step.action) {
+                "UI_CLICK" -> TrevorAccessibilityService.instance?.let { it.clickText(step.argument) } == true
+                "UI_CLICK_DESCRIPTION" -> TrevorAccessibilityService.instance?.let { it.clickDescription(step.argument) } == true
+                "UI_SWIPE" -> true
+                else -> false
+            }
         else -> true
     }
 
