@@ -35,6 +35,45 @@ object TrevorUiLearning {
         val lastSeen: Long
     )
 
+    fun startTeaching(context: Context, goal: String, appPackage: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("teaching", true).putString("teachingGoal", goal.trim().take(300))
+            .putString("teachingPackage", appPackage).putString("teachingSteps", "[]").apply()
+    }
+
+    fun appendTeachingStep(context: Context, step: UiStep) {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!p.getBoolean("teaching", false)) return
+        val a = runCatching { JSONArray(p.getString("teachingSteps", "[]") ?: "[]") }.getOrDefault(JSONArray())
+        if (a.length() >= MAX_STEPS) return
+        a.put(JSONObject().put("action", step.action).put("targetText", step.targetText)
+            .put("description", step.contentDescription).put("package", step.packageName)
+            .put("x", step.x).put("y", step.y))
+        p.edit().putString("teachingSteps", a.toString()).apply()
+    }
+
+    fun stopTeaching(context: Context, success: Boolean): Boolean {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!p.getBoolean("teaching", false)) return false
+        val goal = p.getString("teachingGoal", "") ?: ""
+        val pkg = p.getString("teachingPackage", "") ?: ""
+        val a = runCatching { JSONArray(p.getString("teachingSteps", "[]") ?: "[]") }.getOrDefault(JSONArray())
+        val steps = buildList {
+            for (i in 0 until a.length()) {
+                val o = a.optJSONObject(i) ?: continue
+                add(UiStep(o.optString("action"), o.optString("targetText"), o.optString("description"),
+                    o.optString("package"), o.optInt("x", -1), o.optInt("y", -1)))
+            }
+        }
+        p.edit().putBoolean("teaching", false).remove("teachingSteps").apply()
+        if (goal.isBlank() || pkg.isBlank() || steps.isEmpty()) return false
+        record(context, pkg, goal, steps, success)
+        return true
+    }
+
+    fun isTeaching(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("teaching", false)
+
     fun record(
         context: Context,
         appPackage: String,
