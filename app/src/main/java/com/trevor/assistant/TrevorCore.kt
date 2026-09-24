@@ -82,6 +82,18 @@ object TrevorCore {
         } else {
             null
         }
+
+        // UI goals use the offline perception/action loop instead of requiring a
+        // pre-written sequence of clicks. This lets TREVOR inspect, scroll, click,
+        // re-inspect and recover using local screen semantics + OCR.
+        if (smartIntent.kind == TrevorSmartCore.IntentKind.AUTOMATION &&
+            looksLikeUiGoal(clean) &&
+            TrevorAccessibilityService.instance != null
+        ) {
+            val uiResult = TrevorOfflineUiAgent.pursueGoal(context, clean)
+            if (uiResult.isSuccess) return finish(TrevorCoreResult.Answer(uiResult.getOrThrow()))
+        }
+
         if (automation != null) {
             val automationResult = withContext(Dispatchers.IO) {
                 TrevorAutomationEngine.execute(context, automation)
@@ -292,6 +304,12 @@ object TrevorCore {
             input.take(4_000),
             "Never claim an action was performed unless it was actually performed and verified."
         ).filter { it.isNotBlank() }.joinToString("\n")
+    }
+
+    private fun looksLikeUiGoal(input: String): Boolean {
+        val s = input.lowercase()
+        return listOf("click", "tap", "press", "scroll", "swipe", "go to", "open", "find", "select", "tab", "button")
+            .any { s.contains(it) }
     }
 
     private fun modeHintForLearning(mode: TrevorMode?, input: String): String =
