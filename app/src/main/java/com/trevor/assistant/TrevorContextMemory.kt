@@ -33,7 +33,8 @@ object TrevorContextMemory {
         val confirmed: Boolean,
         val source: String,
         val updatedAt: Long,
-        val confidence: Double
+        val confidence: Double,
+        val shareWithAi: Boolean = false
     )
 
     suspend fun recordContext(
@@ -80,7 +81,8 @@ object TrevorContextMemory {
                 confirmed = true,
                 source = source.trim().take(80).ifBlank { "user" },
                 updatedAt = System.currentTimeMillis(),
-                confidence = 1.0
+                confidence = 1.0,
+                shareWithAi = false
             )
         )
         prune(context, System.currentTimeMillis())
@@ -89,7 +91,7 @@ object TrevorContextMemory {
     suspend fun confirmedFacts(context: Context, limit: Int = 20): List<MemoryFact> =
         withContext(Dispatchers.IO) {
             TrevorDatabase.get(context).memoryDao().confirmedFacts(limit.coerceIn(1, MAX_FACTS)).map {
-                MemoryFact(it.key, it.value, it.confirmed, it.source, it.updatedAt, it.confidence)
+                MemoryFact(it.key, it.value, it.confirmed, it.source, it.updatedAt, it.confidence, it.shareWithAi)
             }
         }
 
