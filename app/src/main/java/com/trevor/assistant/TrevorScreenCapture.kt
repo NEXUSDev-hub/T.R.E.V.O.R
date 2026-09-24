@@ -29,9 +29,7 @@ object TrevorScreenCapture {
     }
 }
 
-class TrevorScreenCaptureService(
-    private val unused: String? = null
-) : Service() {
+class TrevorScreenCaptureService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var projection: android.media.projection.MediaProjection? = null
     private var reader: ImageReader? = null
