@@ -17,6 +17,7 @@ object TrevorOfflineUiAgent {
             ?: return Result.failure(IllegalStateException("Enable TREVOR Accessibility Service first."))
         val pkg = expectedPackage?.takeIf { it.isNotBlank() } ?: inferPackage(goal)
         val terms = targetTerms(goal)
+        if (pkg != null && service.currentPackage() != pkg) launchPackage(context, pkg)
 
         if (pkg != null) {
             val learned = TrevorUiLearning.find(context, pkg, goal).firstOrNull()
@@ -111,6 +112,14 @@ object TrevorOfflineUiAgent {
 
     private fun scrollDirection(goal: String): Int =
         if (goal.contains("up", true) || goal.contains("above", true)) -1 else 1
+
+    private fun launchPackage(context: Context, packageName: String): Boolean = runCatching {
+        val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            ?: return false
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        true
+    }.getOrDefault(false)
 
     private fun inferPackage(goal: String): String? = when {
         goal.contains("youtube", true) -> "com.google.android.youtube"
