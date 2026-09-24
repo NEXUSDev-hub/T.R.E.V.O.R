@@ -12,12 +12,12 @@ object TrevorOfflineUiAgent {
     private const val MAX_STEPS = 12
     private const val WAIT_MS = 400L
 
-    suspend fun pursueGoal(context: Context, goal: String, expectedPackage: String? = null): Result<String> {
+    suspend fun pursueGoal(context: Context, goal: String, expectedPackage: String? = null, fast: Boolean = false): Result<String> {
         val service = TrevorAccessibilityService.instance
             ?: return Result.failure(IllegalStateException("Enable TREVOR Accessibility Service first."))
         val pkg = expectedPackage?.takeIf { it.isNotBlank() } ?: inferPackage(goal)
         val terms = targetTerms(goal)
-        if (pkg != null && service.currentPackage() != pkg) launchPackage(context, pkg)
+        if (fast && pkg != null && service.currentPackage() != pkg) launchPackage(context, pkg)
 
         if (pkg != null) {
             val learned = TrevorUiLearning.find(context, pkg, goal).firstOrNull()
