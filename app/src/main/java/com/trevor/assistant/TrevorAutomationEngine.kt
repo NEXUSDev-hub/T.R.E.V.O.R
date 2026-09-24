@@ -430,8 +430,8 @@ object TrevorAutomationEngine {
         }
         "ui" -> TrevorAccessibilityService.instance != null &&
             when (step.action) {
-                "UI_CLICK" -> TrevorAccessibilityService.instance?.let { it.clickText(step.argument) } == true
-                "UI_CLICK_DESCRIPTION" -> TrevorAccessibilityService.instance?.let { it.clickDescription(step.argument) } == true
+                "UI_CLICK" -> TrevorAccessibilityService.instance?.let { it.hasText(step.argument) } == true
+                "UI_CLICK_DESCRIPTION" -> TrevorAccessibilityService.instance?.let { it.hasDescription(step.argument) } == true
                 "UI_SWIPE" -> true
                 else -> false
             }
