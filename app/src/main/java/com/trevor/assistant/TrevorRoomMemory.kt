@@ -147,7 +147,9 @@ abstract class TrevorDatabase : RoomDatabase() {
                 db.execSQL("CREATE TABLE IF NOT EXISTS trevor_tasks (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, action TEXT NOT NULL, triggerAt INTEGER NOT NULL, status TEXT NOT NULL, createdAt INTEGER NOT NULL)")
             }
         }
-        private val TREVOR_MIGRATION_3_4 = object : Migration(3, 4) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE memory_facts ADD COLUMN shareWithAi INTEGER NOT NULL DEFAULT 0") } }\n\n        private val TREVOR_MIGRATION_2_3 = object : Migration(2, 3) {
+        private val TREVOR_MIGRATION_3_4 = object : Migration(3, 4) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE memory_facts ADD COLUMN shareWithAi INTEGER NOT NULL DEFAULT 0") } }
+
+        private val TREVOR_MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS context_observations (fingerprint TEXT NOT NULL PRIMARY KEY, signature TEXT NOT NULL, appPackage TEXT NOT NULL, observedAt INTEGER NOT NULL)")
                 db.execSQL("CREATE TABLE IF NOT EXISTS memory_facts (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL, confirmed INTEGER NOT NULL, source TEXT NOT NULL, updatedAt INTEGER NOT NULL, confidence REAL NOT NULL)")
