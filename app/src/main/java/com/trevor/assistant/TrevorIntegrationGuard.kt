@@ -25,7 +25,8 @@ object TrevorIntegrationGuard {
             "notifications" to TrevorSecurityHardening.notificationsAllowed(context),
             "microphone" to TrevorSecurityHardening.microphoneAllowed(context),
             "overlay" to TrevorSecurityHardening.overlayAllowed(context),
-            "usageAccess" to TrevorSecurityHardening.usageAccessAllowed(context)
+            "usageAccess" to TrevorSecurityHardening.usageAccessAllowed(context),
+            "visualCaptureData" to TrevorScreenCaptureStore.latest(context).isNotBlank()
         )
         if (!identity) warnings += "Identity contract mismatch."
         if (!database) warnings += "Room database unavailable."
