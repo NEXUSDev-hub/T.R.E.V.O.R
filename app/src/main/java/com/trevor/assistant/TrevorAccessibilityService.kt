@@ -150,6 +150,16 @@ class TrevorAccessibilityService : AccessibilityService() {
         )
     }
 
+    fun scroll(forward: Boolean): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val node = findNode(root) { it.isScrollable }
+        if (node != null) {
+            val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            if (node.performAction(action)) return true
+        }
+        return false
+    }
+
     fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long = 350L): Boolean =
         dispatchGesture(
             android.accessibilityservice.GestureDescription.Builder()
