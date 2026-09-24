@@ -1,4 +1,4 @@
-name: TREVOR Debug APK
+name: TREVOR Debug APK Build
 
 on:
   push:
