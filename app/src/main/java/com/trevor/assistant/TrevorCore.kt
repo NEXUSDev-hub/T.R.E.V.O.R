@@ -38,6 +38,7 @@ object TrevorCore {
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
         val aiTaskId = UUID.randomUUID().toString()
 
+        TrevorOfflineLearning.observe(context, clean, modeHintForLearning(mode, clean), source = "observation")
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
         val learningEnabled = TrevorSettingsStore.load(context).usageIntelligenceEnabled
         val explicitlySelectedMode = mode
@@ -160,6 +161,9 @@ object TrevorCore {
 
         if (result is TrevorCoreResult.Answer) {
             TrevorPersistentMemory.saveMessage(context, conversationId, "assistant", result.text, "TREVOR")
+            TrevorOfflineLearning.recordOutcome(context, modeHintForLearning(resolvedMode, clean), clean, smartIntent.kind.name, TrevorOfflineLearning.Outcome.SUCCESS, result.text)
+        } else if (result is TrevorCoreResult.Error) {
+            TrevorOfflineLearning.recordOutcome(context, modeHintForLearning(resolvedMode, clean), clean, smartIntent.kind.name, TrevorOfflineLearning.Outcome.FAILURE, result.message)
         }
         return finish(result)
     }
@@ -289,6 +293,15 @@ object TrevorCore {
             "Never claim an action was performed unless it was actually performed and verified."
         ).filter { it.isNotBlank() }.joinToString("\n")
     }
+
+    private fun modeHintForLearning(mode: TrevorMode?, input: String): String =
+        mode?.name?.lowercase() ?: when {
+            input.contains("sfs2", ignoreCase = true) -> "sfs2"
+            input.contains("chrome", ignoreCase = true) -> "chrome"
+            input.contains("youtube", ignoreCase = true) -> "youtube"
+            input.contains("instagram", ignoreCase = true) -> "instagram"
+            else -> "general"
+        }
 
     private fun finish(result: TrevorCoreResult): TrevorCoreResult {
         TrevorStateStore.update {
