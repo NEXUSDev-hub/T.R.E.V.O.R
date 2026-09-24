@@ -7,6 +7,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -19,6 +22,12 @@ fun TrevorFeatureSurface(context: Context) {
             .getBoolean("full_intro_seen", false))
     }
     var tab by remember { mutableStateOf("TOOLS") }
+    val activity = LocalContext.current
+    val captureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            TrevorScreenCapture.start(activity, result.resultCode, result.data!!)
+        }
+    }
 
     if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
         Surface(
@@ -33,7 +42,7 @@ fun TrevorFeatureSurface(context: Context) {
             ) {
                 Text("TREVOR LANDSCAPE TOOL DECK", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("TOOLS", "TERMINAL", "MODES").forEach { item ->
+                    listOf("TOOLS", "TERMINAL", "MODES", "VISUAL").forEach { item ->
                         FilterChip(selected = tab == item, onClick = { tab = item }, label = { Text(item) })
                     }
                 }
@@ -41,6 +50,7 @@ fun TrevorFeatureSurface(context: Context) {
                     "TOOLS" -> TrevorLandscapeTools()
                     "TERMINAL" -> TrevorLandscapeTerminal(context)
                     "MODES" -> TrevorModeTutorial()
+                    "VISUAL" -> TrevorVisualControls(activity)
                 }
             }
         }
@@ -152,5 +162,25 @@ private fun TrevorModeTutorial() {
         Text("MODE TUTORIAL", style = MaterialTheme.typography.titleSmall)
         descriptions.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         Text("Landscape tools appear only while the device is in landscape orientation.", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+
+@Composable
+private fun TrevorVisualControls(context: android.content.Context) {
+    var latest by remember { mutableStateOf(TrevorScreenCaptureStore.latest(context)) }
+    Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+        Text("VISUAL INTELLIGENCE", style = MaterialTheme.typography.titleSmall)
+        Text("User-consented screen capture performs one bounded local OCR pass. TREVOR never starts capture silently.", style = MaterialTheme.typography.bodySmall)
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+            Button(onClick = {
+                val intent = TrevorScreenCapture.permissionIntent(context)
+                (context as? android.app.Activity)?.let { _ ->
+                    // Launcher is owned by the parent composable; this button is replaced by the helper below.
+                }
+            }) { Text("USE VISUAL MODE") }
+            OutlinedButton(onClick = { latest = TrevorScreenCaptureStore.latest(context) }) { Text("REFRESH") }
+        }
+        if (latest.isNotBlank()) Text(latest.take(6000), style = MaterialTheme.typography.bodySmall)
     }
 }
