@@ -62,6 +62,23 @@ class TrevorAccessibilityService : AccessibilityService() {
         return clickNode(node)
     }
 
+    fun hasText(target: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val wanted = target.trim()
+        return findNode(root) { n ->
+            n.text?.toString()?.trim()?.equals(wanted, true) == true ||
+                n.contentDescription?.toString()?.trim()?.equals(wanted, true) == true
+        } != null
+    }
+
+    fun hasDescription(description: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val wanted = description.trim()
+        return findNode(root) {
+            it.contentDescription?.toString()?.trim()?.equals(wanted, true) == true
+        } != null
+    }
+
     fun clickDescription(description: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val node = findNode(root) {
