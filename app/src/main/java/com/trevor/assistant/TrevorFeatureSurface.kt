@@ -50,7 +50,7 @@ fun TrevorFeatureSurface(context: Context) {
                     "TOOLS" -> TrevorLandscapeTools()
                     "TERMINAL" -> TrevorLandscapeTerminal(context)
                     "MODES" -> TrevorModeTutorial()
-                    "VISUAL" -> TrevorVisualControls(activity)
+                    "VISUAL" -> TrevorVisualControls(activity) { captureLauncher.launch(TrevorScreenCapture.permissionIntent(activity)) }
                 }
             }
         }
@@ -167,18 +167,13 @@ private fun TrevorModeTutorial() {
 
 
 @Composable
-private fun TrevorVisualControls(context: android.content.Context) {
+private fun TrevorVisualControls(context: android.content.Context, onCapture: () -> Unit) {
     var latest by remember { mutableStateOf(TrevorScreenCaptureStore.latest(context)) }
     Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
         Text("VISUAL INTELLIGENCE", style = MaterialTheme.typography.titleSmall)
         Text("User-consented screen capture performs one bounded local OCR pass. TREVOR never starts capture silently.", style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-            Button(onClick = {
-                val intent = TrevorScreenCapture.permissionIntent(context)
-                (context as? android.app.Activity)?.let { _ ->
-                    // Launcher is owned by the parent composable; this button is replaced by the helper below.
-                }
-            }) { Text("USE VISUAL MODE") }
+            Button(onClick = onCapture) { Text("USE VISUAL MODE") }
             OutlinedButton(onClick = { latest = TrevorScreenCaptureStore.latest(context) }) { Text("REFRESH") }
         }
         if (latest.isNotBlank()) Text(latest.take(6000), style = MaterialTheme.typography.bodySmall)
