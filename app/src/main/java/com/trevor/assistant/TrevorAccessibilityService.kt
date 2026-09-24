@@ -100,6 +100,25 @@ class TrevorAccessibilityService : AccessibilityService() {
         } != null
     }
 
+    fun enterText(value: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val node = findNode(root) { it.isEditable && it.isFocused }
+            ?: findNode(root) { it.isEditable }
+            ?: return false
+        if (!node.isFocused) node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value.take(4000))
+        }
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+    }
+
+    fun editableContains(value: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        return findNode(root) { node ->
+            node.isEditable && node.text?.toString()?.contains(value, true) == true
+        } != null
+    }
+
     fun clickDescription(description: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val node = findNode(root) {
