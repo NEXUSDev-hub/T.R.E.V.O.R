@@ -109,13 +109,26 @@ class TrevorAccessibilityService : AccessibilityService() {
     }
 
     fun clickAt(x: Int, y: Int): Boolean {
-        val root = rootInActiveWindow ?: return false
-        val node = findNode(root) {
-            val r = Rect()
-            it.getBoundsInScreen(r)
-            r.contains(x, y) && (it.isClickable || it.isFocusable)
-        } ?: return false
-        return clickNode(node)
+        val root = rootInActiveWindow
+        if (root != null) {
+            val node = findNode(root) {
+                val r = Rect()
+                it.getBoundsInScreen(r)
+                r.contains(x, y) && (it.isClickable || it.isFocusable)
+            }
+            if (node != null && clickNode(node)) return true
+        }
+        // Visual/OCR fallback for custom-rendered apps such as games that expose
+        // little or no clickable accessibility hierarchy.
+        return dispatchGesture(
+            android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(
+                    android.accessibilityservice.GestureDescription.StrokeDescription(
+                        android.graphics.Path().apply { moveTo(x.toFloat(), y.toFloat()) },
+                        0L, 80L
+                    )
+                ).build(), null, null
+        )
     }
 
     fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long = 350L): Boolean =
