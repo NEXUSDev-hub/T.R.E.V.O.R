@@ -95,7 +95,7 @@ object TrevorContextMemory {
             }
         }
 
-    suspend fun forgetFact(context: Context, key: String) = withContext(Dispatchers.IO) {
+    suspend fun setFactAiSharing(context: Context, key: String, allowed: Boolean) = withContext(Dispatchers.IO) {\n        val dao = TrevorDatabase.get(context).memoryDao()\n        val fact = dao.confirmedFacts(MAX_FACTS).firstOrNull { it.key == key } ?: return@withContext\n        dao.upsertFact(fact.copy(shareWithAi = allowed))\n    }\n\n    suspend fun forgetFact(context: Context, key: String) = withContext(Dispatchers.IO) {
         TrevorDatabase.get(context).memoryDao().deleteFact(key)
     }
 
