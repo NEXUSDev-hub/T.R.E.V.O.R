@@ -329,8 +329,8 @@ object TrevorCore {
     }
 
     private fun extractUiInput(input: String): String {
-        val m = Regex("""(?:type|enter|write|input)\\s+(.+)$""", RegexOption.IGNORE_CASE).find(input.trim())
-        return m?.groupValues?.getOrNull(1)?.trim()?.removeSurrounding(""")?.removeSurrounding("'").orEmpty()
+        val m = Regex("""(?:type|enter|write|input)\s+(.+)$""", RegexOption.IGNORE_CASE).find(input.trim())
+        return m?.groupValues?.getOrNull(1)?.trim()?.removeSurrounding("\"")?.removeSurrounding("'").orEmpty()
     }
 
     private fun looksLikeUiGoal(input: String): Boolean {
