@@ -94,11 +94,16 @@ object TrevorOfflineLearning {
                 val observations = (old?.observations ?: 0) + 1
                 val sameValue = old?.value == candidate.value
                 val successes = (old?.successes ?: 0) + if (sameValue) 1 else 0
-                knowledge[key] = candidate.copy(
+                knowledge[key] = Knowledge(
+                    domain = candidate.domain,
+                    subject = candidate.subject,
+                    predicate = candidate.predicate,
+                    value = candidate.value,
                     confidence = updateConfidence(old?.confidence ?: 0.30, sameValue, observations),
                     observations = observations,
                     successes = successes,
-                    lastSeen = now
+                    lastSeen = now,
+                    source = candidate.source
                 )
             }
 
