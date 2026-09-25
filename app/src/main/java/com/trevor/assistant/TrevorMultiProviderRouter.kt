@@ -1,3 +1,7 @@
+package com.trevor.assistant
+
+import android.content.Context
+
 object TrevorMultiProviderRouter {
     suspend fun classifyIntent(context: Context, prompt: String): Result<String> {
         val key = SecureApiKeyStore.load(context)
