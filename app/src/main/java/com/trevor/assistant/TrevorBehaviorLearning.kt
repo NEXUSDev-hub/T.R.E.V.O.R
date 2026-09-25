@@ -562,7 +562,7 @@ object TrevorBehaviorLearning {
             .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
             .sortedByDescending { it.confidence }
             .take(MAX_SESSIONS)
-            .associateBy { sessionKey(it.packageName, it.hourBucket, it.weekday) }
+            .associateBy { sessionKey(it.sessionStart) }
 
     private fun pruneRoutines(
         input: Map<String, RoutineCandidate>,
