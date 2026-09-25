@@ -68,7 +68,7 @@ object TrevorDocumentExtractor {
                             .replace(Regex("</w:p>"), "\n")
                             .replace(Regex("<[^>]+>"), "")
                             .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-                            .replace("&quot;", """).replace("&#39;", "'")
+                            .replace("&quot;", "\"").replace("&#39;", "'")
                             .take(MAX_CHARS).trim()
                     }
                     entry = zip.nextEntry
