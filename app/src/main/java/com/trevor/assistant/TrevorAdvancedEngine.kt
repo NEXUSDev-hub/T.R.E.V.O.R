@@ -1,147 +1,10 @@
 package com.trevor.assistant
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.pdf.PdfRenderer
-import android.net.Uri
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.zip.ZipInputStream
-import kotlin.coroutines.resume
-
-object TrevorDocumentExtractor {
-    private const val MAX_CHARS = 80000
-    suspend fun extract(context: Context, uri: Uri, name: String, mime: String): Result<String> =
-        withContext(Dispatchers.IO) {
-            try {
-                val value = when {
-                    mime == "application/pdf" || name.endsWith(".pdf", true) -> extractPdf(context, uri)
-                    mime.contains("wordprocessingml") || name.endsWith(".docx", true) -> extractDocx(context, uri)
-                    name.endsWith(".doc", true) || mime == "application/msword" -> extractLegacyDoc(context, uri)
-                    mime.startsWith("image/") -> extractImageOcr(context, uri)
-                    else -> context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(MAX_CHARS) }
-                        ?: error("Unable to open file.")
-                }
-                Result.success(value)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    private suspend fun extractPdf(context: Context, uri: Uri): String {
-        val pfd = context.contentResolver.openFileDescriptor(uri, "r") ?: error("Unable to open PDF.")
-        return pfd.use {
-            PdfRenderer(it).use { renderer ->
-                val out = StringBuilder()
-                val count = minOf(renderer.pageCount, 30)
-                for (i in 0 until count) {
-                    renderer.openPage(i).use { page ->
-                        if (out.length < MAX_CHARS) {
-                        val scale = minOf(1.25f, 1800f / page.width.coerceAtLeast(1))
-                        val width = (page.width * scale).toInt().coerceAtLeast(1)
-                        val height = (page.height * scale).toInt().coerceAtLeast(1)
-                        val maxPixels = 7_000_000L
-                        val safeScale = if (width.toLong() * height > maxPixels) {
-                            kotlin.math.sqrt(maxPixels.toDouble() / (page.width.toDouble() * page.height.toDouble()))
-                        } else 1.0
-                        val safeWidth = (page.width * scale * safeScale).toInt().coerceAtLeast(1)
-                        val safeHeight = (page.height * scale * safeScale).toInt().coerceAtLeast(1)
-                        val bitmap = Bitmap.createBitmap(safeWidth, safeHeight, Bitmap.Config.ARGB_8888)
-                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        val text = TrevorOcr.recognize(bitmap)
-                        if (text.isNotBlank()) out.append("\n[Page ").append(i + 1).append("]\n").append(text)
-                        bitmap.recycle()
-                        }
-                    }
-                }
-                out.toString().trim().take(MAX_CHARS).ifBlank {
-                    "PDF opened, but no readable text was detected in the first " + count + " pages."
-                }
-            }
-        }
-    }
-
-    private fun extractDocx(context: Context, uri: Uri): String {
-        val input = context.contentResolver.openInputStream(uri) ?: error("Unable to open DOCX.")
-        input.use {
-            ZipInputStream(it).use { zip ->
-                var e = zip.nextEntry
-                while (e != null) {
-                    if (e.name == "word/document.xml") {
-                        return zip.readBytes().toString(Charsets.UTF_8)
-                            .replace(Regex("<w:tab[^>]*/>"), "\t")
-                            .replace(Regex("</w:p>"), "\n")
-                            .replace(Regex("<[^>]+>"), "")
-                            .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-                            .replace("&quot;", "\"").replace("&#39;", "'")
-                            .take(MAX_CHARS).trim()
-                    }
-                    e = zip.nextEntry
-                }
-            }
-        }
-        error("DOCX document.xml was not found.")
-    }
-
-    private fun extractLegacyDoc(context: Context, uri: Uri): String {
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Unable to open DOC.")
-        val text = buildString {
-            var run = StringBuilder()
-            fun flush() {
-                val s = run.toString().trim()
-                if (s.length >= 3) {
-                    if (isNotEmpty()) append(' ')
-                    append(s)
-                }
-                run = StringBuilder()
-            }
-            bytes.forEach { b ->
-                val c = (b.toInt() and 255).toChar()
-                if (c.code in 32..126 || c == '\n' || c == '\t') run.append(c) else flush()
-                if (run.length > 400) flush()
-            }
-            flush()
-        }.replace(Regex("\\s+"), " ").trim()
-        return text.take(MAX_CHARS).ifBlank {
-            "Legacy .doc detected, but no recoverable plain text was found."
-        }
-    }
-
-    private suspend fun extractImageOcr(context: Context, uri: Uri): String {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: error("Unable to open image.")
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("Unable to determine image dimensions.")
-        val maxPixels = 8_000_000L
-        var sample = 1
-        while ((bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > maxPixels) sample *= 2
-        val options = BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1) }
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-            ?: error("Unable to decode image.")
-        return try { TrevorOcr.recognize(bitmap).take(MAX_CHARS) } finally { bitmap.recycle() }
-    }
-}
-
-object TrevorOcr {
-    suspend fun recognize(bitmap: Bitmap): String = suspendCancellableCoroutine { cont ->
-        val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-        val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-            com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-        )
-        recognizer.process(image).addOnSuccessListener {
-            if (cont.isActive) cont.resume(it.text.trim())
-            recognizer.close()
-        }.addOnFailureListener {
-            if (cont.isActive) cont.resume("")
-            recognizer.close()
-        }
-        cont.invokeOnCancellation { recognizer.close() }
-    }
-}
 
 data class TrevorVerifiedSource(val url: String, val reachable: Boolean, val status: Int?, val note: String)
 
@@ -320,9 +183,4 @@ object TrevorDiagnostics {
             appendLine("File: " + state.fileState + "; orb: " + state.orbState + "; last error: " + (state.lastError ?: "none"))
         }
     }
-}
-
-object TrevorMultiFileService {
-    suspend fun inspectAll(context: Context, uris: List<Uri>): List<Result<TrevorAttachment>> =
-        uris.distinct().take(10).map { TrevorFileService.inspect(context, it) }
 }
