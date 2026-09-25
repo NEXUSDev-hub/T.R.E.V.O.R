@@ -8,6 +8,7 @@ import android.media.ImageReader
 import android.media.projection.MediaProjectionManager
 import android.os.*
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import kotlinx.coroutines.*
 
 /** Parts 9/10: user-consented screen capture -> local OCR pipeline. */
