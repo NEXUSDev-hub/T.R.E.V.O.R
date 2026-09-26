@@ -88,7 +88,7 @@ object TrevorOfflineVision {
         suspendCancellableCoroutine { continuation ->
             val executor = Executors.newSingleThreadExecutor()
             continuation.invokeOnCancellation { executor.shutdownNow() }
-            service.takeScreenshot(0, executor, object : AccessibilityService.TakeScreenshotCallback() {
+            service.takeScreenshot(0, executor, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
                     executor.shutdown()
                     if (!continuation.isActive) {
