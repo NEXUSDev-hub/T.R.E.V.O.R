@@ -7,6 +7,7 @@ import java.util.Locale
 object TrevorOfflineUiAgent {
     private const val MAX_STEPS = 12
     private const val WAIT_MS = 400L
+    private const val MIN_TARGET_SCORE = 45
 
     suspend fun pursueGoal(context: Context, goal: String, expectedPackage: String? = null, fast: Boolean = false): Result<String> {
         val service = TrevorAccessibilityService.instance
@@ -35,7 +36,9 @@ object TrevorOfflineUiAgent {
             }
 
             val target = chooseTarget(observation, terms)
-            if (target != null && target.clickable &&
+            // Only click when the screen semantics actually match the goal. A generic
+            // clickable node is not enough; otherwise TREVOR could trigger an unrelated action.
+            if (target != null && target.clickable && target.score >= MIN_TARGET_SCORE &&
                 service.clickAt(target.bounds.centerX(), target.bounds.centerY())) {
                 delay(WAIT_MS)
                 val after = TrevorOfflineVision.observe(service).getOrNull()
@@ -78,7 +81,7 @@ object TrevorOfflineUiAgent {
         return true
     }
 
-    private fun chooseTarget(observation: TrevorScreenObservation, terms: List<String>): TrevorVisualElement? {
+    private fun chooseTarget(observation: TrevorScreenObservation, terms: List<String>): ScoredTarget? {
         var best: TrevorVisualElement? = null
         var bestScore = 0
         for (element in observation.elements) {
@@ -98,7 +101,14 @@ object TrevorOfflineUiAgent {
                 best = element
             }
         }
-        return best
+        return best?.let { ScoredTarget(it, bestScore) }
+    }
+
+    private data class ScoredTarget(val element: TrevorVisualElement, val score: Int) {
+        val clickable: Boolean get() = element.clickable
+        val bounds: android.graphics.Rect get() = element.bounds
+        val text: String get() = element.text
+        val description: String get() = element.description
     }
 
     private fun targetTerms(goal: String): List<String> {
