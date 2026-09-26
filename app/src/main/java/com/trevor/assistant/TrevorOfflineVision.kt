@@ -25,6 +25,7 @@ data class TrevorScreenObservation(
     val width: Int,
     val height: Int,
     val elements: List<TrevorVisualElement>,
+    val visualControls: List<TrevorVisualControl> = emptyList(),
     val ocrText: String,
     val timestamp: Long
 )
@@ -43,6 +44,7 @@ object TrevorOfflineVision {
                 val elements = mutableListOf<TrevorVisualElement>()
                 collectAccessibility(service.rootInActiveWindow, elements)
                 val blocks = TrevorOcr.recognizeBlocks(screenshot)
+                val visualControls = TrevorLocalVisualModel.detect(screenshot, blocks)
                 blocks.forEach {
                     elements += TrevorVisualElement(
                         text = it.text,
@@ -55,6 +57,7 @@ object TrevorOfflineVision {
                     packageName = root?.packageName?.toString().orEmpty(),
                     width = screenshot.width,
                     height = screenshot.height,
+                    visualControls = visualControls,
                     elements = elements.distinctBy {
                         it.text.lowercase(Locale.ROOT) + "|" + it.description.lowercase(Locale.ROOT) +
                             "|" + it.bounds.left + "," + it.bounds.top + "," + it.bounds.right + "," + it.bounds.bottom
