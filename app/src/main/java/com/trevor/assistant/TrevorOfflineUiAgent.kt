@@ -101,8 +101,30 @@ object TrevorOfflineUiAgent {
                 best = element
             }
         }
+        if (best != null && bestScore >= MIN_TARGET_SCORE) return ScoredTarget(best, bestScore)
+
+        // Custom-rendered apps and games may expose no useful accessibility nodes.
+        // Use only OCR-labelled visual controls; unlabeled regions are not trusted
+        // as semantic targets.
+        for (control in observation.visualControls) {
+            val haystack = control.label.lowercase(Locale.ROOT)
+            if (haystack.isBlank()) continue
+            var score = 0
+            for (term in terms) {
+                score += when {
+                    haystack == term -> 100
+                    haystack.contains(term) -> 45
+                    else -> 0
+                }
+            }
+            score += (control.confidence * 10f).toInt()
+            if (score > bestScore) {
+                bestScore = score
+                best = TrevorVisualElement(text = control.label, bounds = control.bounds, source = "local-cv", clickable = true)
+            }
+        }
         return best?.let { ScoredTarget(it, bestScore) }
-    }
+    
 
     private data class ScoredTarget(val element: TrevorVisualElement, val score: Int) {
         val clickable: Boolean get() = element.clickable
