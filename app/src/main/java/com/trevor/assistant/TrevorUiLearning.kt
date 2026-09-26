@@ -100,13 +100,21 @@ object TrevorUiLearning {
 
     fun find(context: Context, appPackage: String, goal: String): List<Workflow> {
         val terms = tokenize(goal)
+        if (appPackage.isBlank() || terms.isEmpty()) return emptyList()
         return read(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)).values
             .filter { it.appPackage == appPackage }
-            .sortedByDescending {
-                terms.count { term ->
-                    it.goal.lowercase(Locale.ROOT).contains(term)
-                } * 10 + it.successes * 2 - it.failures
+            .map { workflow ->
+                val overlap = terms.count { term ->
+                    workflow.goal.lowercase(Locale.ROOT).contains(term)
+                }
+                workflow to overlap
             }
+            .filter { (_, overlap) -> overlap > 0 }
+            .sortedWith(
+                compareByDescending<Pair<Workflow, Int>> { it.second * 10 + it.first.successes * 2 - it.first.failures }
+                    .thenByDescending { it.first.lastSeen }
+            )
+            .map { it.first }
             .take(5)
     }
 
