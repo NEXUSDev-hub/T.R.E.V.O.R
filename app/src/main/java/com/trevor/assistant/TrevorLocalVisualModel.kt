@@ -123,12 +123,11 @@ object TrevorLocalVisualModel {
     }
 
     private fun classify(r: Rect, label: String, w: Int, h: Int): TrevorVisualControlType {
-        val s = label.lowercase()
-        if (s.contains("tab") || s in setOf("home", "search", "library", "subscriptions")) return TrevorVisualControlType.TAB
-        if (s.contains("on") || s.contains("off") || s.contains("toggle")) return TrevorVisualControlType.TOGGLE
-        if (s.contains("slider") || s.contains("volume") || s.contains("throttle")) return TrevorVisualControlType.SLIDER
-        if (r.width() > w * .65 && r.height() < h * .12) return TrevorVisualControlType.CARD
-        if (r.width() < w * .2 && r.height() < h * .2) return TrevorVisualControlType.ICON
+        // Generic geometry only. No app/game names or predefined labels.
+        val aspect = r.width().toFloat() / r.height().coerceAtLeast(1)
+        if (r.width() > w * .65f && r.height() < h * .12f) return TrevorVisualControlType.CARD
+        if (aspect > 4f || aspect < .25f) return TrevorVisualControlType.SLIDER
+        if (r.width() < w * .18f && r.height() < h * .18f) return TrevorVisualControlType.ICON
         return if (label.isNotBlank()) TrevorVisualControlType.BUTTON else TrevorVisualControlType.UNKNOWN
     }
 
