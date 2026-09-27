@@ -40,6 +40,15 @@ object TrevorCore {
 
         TrevorOfflineLearning.observe(context, clean, modeHintForLearning(mode, clean), source = "observation")
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
+
+        if (isWhatCanYouSee(clean) && TrevorAccessibilityService.instance != null) {
+            val observation = TrevorOfflineVision.observe(TrevorAccessibilityService.instance!!)
+            if (observation.isSuccess) {
+                return finish(TrevorCoreResult.Answer(
+                    WhatCanYouSee.describe(observation.getOrThrow()).description
+                ))
+            }
+        }
         val learningEnabled = TrevorSettingsStore.load(context).usageIntelligenceEnabled
         val explicitlySelectedMode = mode
         val smartIntent = TrevorSmartCore.understand(
@@ -317,6 +326,9 @@ object TrevorCore {
             "Never claim an action was performed unless it was actually performed and verified."
         ).filter { it.isNotBlank() }.joinToString("\n")
     }
+
+    private fun isWhatCanYouSee(input: String): Boolean =
+        input.trim().lowercase() in setOf("what can you see", "what do you see", "describe what you see")
 
     private fun explicitlyRequestsFastUi(input: String): Boolean {
         val s = input.lowercase()
