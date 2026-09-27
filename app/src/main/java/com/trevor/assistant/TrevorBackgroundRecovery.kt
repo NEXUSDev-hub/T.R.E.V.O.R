@@ -9,6 +9,10 @@ object TrevorBackgroundRecovery {
     private const val UNIQUE = "trevor_background_recovery_v1"
 
     fun schedule(context: Context) {
+        if (!TrevorSettingsStore.load(context).backgroundModeEnabled) {
+            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE)
+            return
+        }
         val request = PeriodicWorkRequestBuilder<TrevorBackgroundRecoveryWorker>(30, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -30,7 +34,7 @@ class TrevorBackgroundRecoveryWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = runCatching {
         val s = TrevorSettingsStore.load(applicationContext)
-        if (!s.backgroundNotifications && !s.usageIntelligenceEnabled) {
+        if (!s.backgroundModeEnabled) {
             TrevorBackgroundRecovery.cancel(applicationContext)
             return Result.success()
         }
