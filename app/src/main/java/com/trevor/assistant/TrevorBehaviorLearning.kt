@@ -762,9 +762,9 @@ object TrevorBehaviorLearning {
     /**
      * Schedules silent local learning through the existing WorkManager system.
      */
-    fun ensureBackgroundLearning(context: Context) {
+    fun ensureBackgroundLearning(context: Context, enabled: Boolean = true) {
         val settings = TrevorSettingsStore.load(context)
-        if (!settings.usageIntelligenceEnabled) {
+        if (!enabled || !settings.usageIntelligenceEnabled) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
             return
         }
