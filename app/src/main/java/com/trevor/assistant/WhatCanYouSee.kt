@@ -111,7 +111,7 @@ object WhatCanYouSee {
         val boxes = o.visualControls.map { it.bounds }.filter { it.width() > 0 && it.height() > 0 }
         if (boxes.size < 3) return 0f
         val center = w / 2f
-        val spread = boxes.map { kotlin.math.abs(it.centerX() - center) / w }.average()
+        val spread = (boxes.map { kotlin.math.abs(it.centerX() - center) / w }.average()).toFloat()
         val sizes = boxes.map { it.width().toFloat() / w }
         val variance = (sizes.maxOrNull()!! - sizes.minOrNull()!!).coerceIn(0f, 1f)
         return (spread * .8f + variance * .8f).coerceIn(0f, 1f)
