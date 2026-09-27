@@ -34,6 +34,7 @@ data class TrevorSettings(
     val accent: TrevorAccent = TrevorAccent.ICE,
     val personality: TrevorPersonality = TrevorPersonality.PROFESSIONAL,
     val proactiveEnabled: Boolean = true,
+    val backgroundModeEnabled: Boolean = true,
     val backgroundNotifications: Boolean = true,
     val rubbishMode: Boolean = false,
     val rubbishIntervalSeconds: Int = 30,
@@ -64,6 +65,7 @@ object TrevorSettingsStore {
                 TrevorPersonality.valueOf(p.getString("personality", TrevorPersonality.PROFESSIONAL.name) ?: TrevorPersonality.PROFESSIONAL.name)
             }.getOrDefault(TrevorPersonality.PROFESSIONAL),
             proactiveEnabled = p.getBoolean("proactiveEnabled", true),
+            backgroundModeEnabled = p.getBoolean("backgroundModeEnabled", true),
             backgroundNotifications = p.getBoolean("backgroundNotifications", true),
             rubbishMode = p.getBoolean("rubbishMode", false),
             rubbishIntervalSeconds = p.getInt("rubbishIntervalSeconds", 30).coerceIn(30, 600),
@@ -89,6 +91,7 @@ object TrevorSettingsStore {
             .putString("accent", s.accent.name)
             .putString("personality", s.personality.name)
             .putBoolean("proactiveEnabled", s.proactiveEnabled)
+            .putBoolean("backgroundModeEnabled", s.backgroundModeEnabled)
             .putBoolean("backgroundNotifications", s.backgroundNotifications)
             .putBoolean("rubbishMode", s.rubbishMode)
             .putInt("rubbishIntervalSeconds", s.rubbishIntervalSeconds)
