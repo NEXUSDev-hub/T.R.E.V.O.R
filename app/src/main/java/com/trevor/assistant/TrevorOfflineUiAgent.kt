@@ -124,7 +124,7 @@ object TrevorOfflineUiAgent {
             }
         }
         return best?.let { ScoredTarget(it, bestScore) }
-    
+    }
 
     private data class ScoredTarget(val element: TrevorVisualElement, val score: Int) {
         val clickable: Boolean get() = element.clickable
