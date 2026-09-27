@@ -86,6 +86,8 @@ fun TrevorApp(
     fun save(next: TrevorSettings) {
         settings = next
         TrevorSettingsStore.save(context, next)
+        TrevorBackgroundScheduler.ensureScheduled(context)
+        if (next.backgroundModeEnabled) TrevorBackgroundRecovery.schedule(context) else TrevorBackgroundRecovery.cancel(context)
     }
 
     BackHandler(enabled = screen != TrevorScreen.DASHBOARD) {
