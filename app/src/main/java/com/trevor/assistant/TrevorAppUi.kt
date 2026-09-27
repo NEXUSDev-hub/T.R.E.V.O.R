@@ -609,6 +609,8 @@ private fun TrevorSettingsScreen(
             Text("AI engine: Google Gemini • 3.6 Flash ↔ 3.8 Flash (automatic)", color = Color(0xFFDDF7FF), fontSize = 14.sp)
             TrevorSwitch("Offline first", settings.offlineFirst) { onChange(settings.copy(offlineFirst = it)) }
             TrevorSwitch("Usage intelligence", settings.usageIntelligenceEnabled) { onChange(settings.copy(usageIntelligenceEnabled = it)) }
+            TrevorSwitch("Background Mode", settings.backgroundModeEnabled) { onChange(settings.copy(backgroundModeEnabled = it)) }
+            Text("Keeps TREVOR's lightweight learning, reminders and proactive intelligence scheduled after the app UI is closed. Screen/game interaction still requires the relevant Android access and is never a hidden permanent vision loop.", color = Color(0xFF83AAB7), fontSize = 10.sp)
             TrevorSwitch("Proactive notifications", settings.proactiveNotifications) { onChange(settings.copy(proactiveNotifications = it)) }
             TrevorButton("Analyse phone usage", Icons.Filled.Analytics, {
                 runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
@@ -621,7 +623,7 @@ private fun TrevorSettingsScreen(
             TrevorSwitch("Concise responses", settings.conciseResponses) { onChange(settings.copy(conciseResponses = it)) }
             TrevorSwitch("Technical detail", settings.technicalDetail) { onChange(settings.copy(technicalDetail = it)) }
         }
-        TrevorSettingsSection("PROACTIVE PERSONALITY", settings.accent.color) {
+        TrevorSettingsSection("BACKGROUND + PROACTIVE", settings.accent.color) {
             TrevorPersonalityMenu(settings, onChange)
             TrevorSwitch("Proactive behaviour", settings.proactiveEnabled) { onChange(settings.copy(proactiveEnabled = it)) }
             TrevorSwitch("Background notifications", settings.backgroundNotifications) { onChange(settings.copy(backgroundNotifications = it)) }
