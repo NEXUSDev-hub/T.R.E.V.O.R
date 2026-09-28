@@ -67,7 +67,41 @@ object TrevorAutomationEngine {
     private val executionMutex = Mutex()
 
     fun plan(input: String): TrevorAutomationPlan? {
-        val parts = input.trim()
+        val natural = input.trim()
+        val lower = natural.lowercase(Locale.ROOT)
+
+        // Local semantic macro: decompose a common multi-app task into observable,
+        // recoverable primitives. No cloud model is needed.
+        val whatsappMatch = Regex(
+            """open\s+whatsapp.*find(?:\s+out)?\s+(.+?)\s+and\s+send(?:\s+him|\s+her|\s+them)?\s+(?:a\s+)?message\s+["“”]?(.+?)["“”]?\s+then\s+open\s+chrome.*(?:search|look\s+up)\s+(?:for\s+)?(.+)$""",
+            RegexOption.IGNORE_CASE
+        ).find(natural)
+        if (whatsappMatch != null) {
+            val contact = whatsappMatch.groupValues[1].trim()
+            val message = whatsappMatch.groupValues[2].trim().trim('"', '“', '”')
+            val query = whatsappMatch.groupValues[3].trim()
+            val steps = listOf(
+                TrevorAutomationStep("OPEN_APP", "WhatsApp", true, "launch"),
+                TrevorAutomationStep("WAIT", "1000", false, "wait"),
+                TrevorAutomationStep("TAP_TEXT", "Search", true, "ui"),
+                TrevorAutomationStep("WAIT", "500", false, "wait"),
+                TrevorAutomationStep("TYPE_TEXT", contact, true, "ui"),
+                TrevorAutomationStep("WAIT", "800", false, "wait"),
+                TrevorAutomationStep("TAP_TEXT", contact, true, "ui"),
+                TrevorAutomationStep("WAIT", "900", false, "wait"),
+                TrevorAutomationStep("TYPE_TEXT", message, true, "ui"),
+                TrevorAutomationStep("SEND_MESSAGE", "Send", true, "ui"),
+                TrevorAutomationStep("OPEN_APP", "Chrome", true, "launch"),
+                TrevorAutomationStep("WAIT", "700", false, "wait"),
+                TrevorAutomationStep("VOLUME_HALF_DOWN", "", false, "volume"),
+                TrevorAutomationStep("CHROME_SEARCH", query, true, "launch")
+            )
+            val id = stableId(steps.joinToString("|") { it.action + ":" + it.argument })
+            val result = TrevorAutomationPlan("TREVOR multi-app automation", steps, id)
+            return if (TrevorStructuredPlanner.validate(result).valid) result else null
+        }
+
+        val parts = natural
             .split(Regex("\\s*(?:,|;|\\band then\\b|\\bthen\\b)\\s*", RegexOption.IGNORE_CASE))
             .map(String::trim)
             .filter(String::isNotBlank)
@@ -378,10 +412,27 @@ object TrevorAutomationEngine {
                 if (!TrevorUiVisionService.isConnected()) {
                     return@runCatching StepExecution(false, "FAIL • TREVOR UI control is not enabled.", false)
                 }
-                // Outbound messaging is deliberately a distinct action so the UI can
-                // require user approval immediately before the final send operation.
+                val prefs = context.getSharedPreferences("trevor_automation_approval", Context.MODE_PRIVATE)
+                if (!prefs.getBoolean("approved_send", false)) {
+                    return@runCatching StepExecution(
+                        false,
+                        "CONFIRMATION REQUIRED • TREVOR prepared the message but will not press Send until you explicitly approve it.",
+                        false
+                    )
+                }
+                prefs.edit().putBoolean("approved_send", false).apply()
                 val ok = TrevorUiVisionService.tap(step.argument)
-                StepExecution(ok, if (ok) "OK • sent approved message target." else "FAIL • send target not found.", retryable = !ok)
+                StepExecution(ok, if (ok) "OK • message sent after explicit approval." else "FAIL • Send control not found.", retryable = !ok)
+            }
+            "APPROVE_SEND" -> {
+                context.getSharedPreferences("trevor_automation_approval", Context.MODE_PRIVATE)
+                    .edit().putBoolean("approved_send", true).apply()
+                StepExecution(true, "OK • outbound message approval recorded.", false)
+            }
+            "WAIT" -> {
+                val millis = step.argument.toLongOrNull()?.coerceIn(100L, 5000L) ?: 800L
+                Thread.sleep(millis)
+                StepExecution(true, "OK • waited " + millis + "ms for UI to settle.", false)
             }
             "CHROME_SEARCH" -> {
                 val uri = android.net.Uri.parse("https://www.google.com/search?q=" +
@@ -485,6 +536,9 @@ object TrevorAutomationEngine {
         } == true
         "clipboard" -> context.getSystemService(android.content.ClipboardManager::class.java)
             ?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() == step.argument
+        "approval" -> context.getSharedPreferences("trevor_automation_approval", Context.MODE_PRIVATE)
+            .getBoolean("approved_send", false)
+        "wait" -> true
         "result" -> when (step.action) {
             "USAGE_SUMMARY" -> TrevorUsageIntelligence.summary(context).isNotBlank()
             "BATTERY_STATUS" -> TrevorLocalIntelligence.answer(context, "battery") != null
@@ -532,7 +586,8 @@ object TrevorAutomationEngine {
             "youtube" to "com.google.android.youtube",
             "chrome" to "com.android.chrome",
             "google chrome" to "com.android.chrome",
-            "settings" to "com.android.settings"
+            "settings" to "com.android.settings",
+            "whatsapp" to "com.whatsapp"
         )
         known[q]?.let { if (context.packageManager.getLaunchIntentForPackage(it) != null) return it }
         return context.packageManager.getInstalledApplications(0)
