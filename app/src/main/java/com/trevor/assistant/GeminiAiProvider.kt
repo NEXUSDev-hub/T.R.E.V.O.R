@@ -10,13 +10,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object GeminiAiProvider {
-    const val NORMAL_MODEL = "gemini-3.6-flash"
-    const val ADVANCED_MODEL = "gemini-3.8-flash"
-    const val MODEL = NORMAL_MODEL
+    const val MODEL = "gemini-3.6-flash"
     private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
     private const val MAX_INLINE_FILE_BYTES = 20L * 1024L * 1024L
 
-    suspend fun classifyIntent(context: Context, apiKey: String, prompt: String, model: String = NORMAL_MODEL): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun classifyIntent(context: Context, apiKey: String, prompt: String, model: String = MODEL): Result<String> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext Result.failure(IllegalArgumentException("Gemini API key is missing."))
         if (prompt.isBlank()) return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
         var connection: HttpURLConnection? = null
@@ -47,7 +45,7 @@ object GeminiAiProvider {
                 .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
                 .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt.take(8000))))))
                 .put("generationConfig", JSONObject().put("responseMimeType", "application/json").put("responseSchema", schema))
-            val endpoint = ENDPOINT_BASE + model + ":generateContent"
+            val endpoint = ENDPOINT_BASE + MODEL + ":generateContent"
             connection = URL(endpoint).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 15_000
@@ -76,7 +74,7 @@ object GeminiAiProvider {
         apiKey: String,
         prompt: String,
         attachment: TrevorAttachment? = null,
-        model: String = NORMAL_MODEL,
+        model: String = MODEL,
         useGoogleSearch: Boolean = false
     ): Result<String> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext Result.failure(IllegalArgumentException("Gemini API key is missing."))
