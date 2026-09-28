@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.roundToInt
 import java.util.concurrent.TimeUnit
 
 enum class TrevorAutomationTaskState {
@@ -366,6 +367,47 @@ object TrevorAutomationEngine {
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("TREVOR", step.argument))
                 StepExecution(true, "OK • copied text to clipboard", false)
             }
+            "TYPE_TEXT" -> {
+                if (!TrevorUiVisionService.isConnected()) {
+                    return@runCatching StepExecution(false, "FAIL • TREVOR UI control is not enabled.", false)
+                }
+                val ok = TrevorUiVisionService.typeText(step.argument)
+                StepExecution(ok, if (ok) "OK • entered text." else "FAIL • no editable field is focused.", retryable = !ok)
+            }
+            "SEND_MESSAGE" -> {
+                if (!TrevorUiVisionService.isConnected()) {
+                    return@runCatching StepExecution(false, "FAIL • TREVOR UI control is not enabled.", false)
+                }
+                // Outbound messaging is deliberately a distinct action so the UI can
+                // require user approval immediately before the final send operation.
+                val ok = TrevorUiVisionService.tap(step.argument)
+                StepExecution(ok, if (ok) "OK • sent approved message target." else "FAIL • send target not found.", retryable = !ok)
+            }
+            "CHROME_SEARCH" -> {
+                val uri = android.net.Uri.parse("https://www.google.com/search?q=" +
+                    android.net.Uri.encode(step.argument))
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage("com.android.chrome")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (intent.resolveActivity(context.packageManager) == null) {
+                    return@runCatching StepExecution(false, "FAIL • Chrome is not installed.", false)
+                }
+                context.startActivity(intent)
+                StepExecution(true, "OK • opened Chrome search.", false)
+            }
+            "VOLUME_HALF_DOWN" -> {
+                val audio = context.getSystemService(android.media.AudioManager::class.java)
+                    ?: return@runCatching StepExecution(false, "FAIL • Audio service unavailable.", false)
+                val max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                val current = audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                audio.setStreamVolume(
+                    android.media.AudioManager.STREAM_MUSIC,
+                    (current / 2.0).roundToInt().coerceIn(0, max),
+                    0
+                )
+                StepExecution(true, "OK • media volume reduced by approximately 50%.", false)
+            }
             "TAP_TEXT" -> {
                 if (!TrevorUiVisionService.isConnected()) {
                     return@runCatching StepExecution(
@@ -447,6 +489,11 @@ object TrevorAutomationEngine {
             "USAGE_SUMMARY" -> TrevorUsageIntelligence.summary(context).isNotBlank()
             "BATTERY_STATUS" -> TrevorLocalIntelligence.answer(context, "battery") != null
             else -> false
+        }
+        "volume" -> {
+            val audio = context.getSystemService(android.media.AudioManager::class.java)
+            audio != null && audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) <=
+                (audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC) / 2)
         }
         else -> true
     }
