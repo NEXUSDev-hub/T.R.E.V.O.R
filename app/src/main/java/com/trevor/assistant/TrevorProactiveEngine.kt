@@ -38,7 +38,7 @@ object TrevorProactiveEngine {
             "- Never claim an action happened unless the context proves it."
 
         val ai = withContext(Dispatchers.IO) {
-            TrevorMultiProviderRouter.ask(context.applicationContext, prompt)
+            SecureApiKeyStore.load(context)?.let { GeminiAiProvider.ask(context.applicationContext, it, prompt) } ?: Result.failure(IllegalStateException("Gemini API key is not configured."))
         }
         return ai.getOrElse {
             val output = state.lastOutput.orEmpty().lineSequence().firstOrNull { line -> line.isNotBlank() }.orEmpty()
