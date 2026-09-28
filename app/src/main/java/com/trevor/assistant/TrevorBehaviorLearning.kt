@@ -539,7 +539,7 @@ object TrevorBehaviorLearning {
     private fun sessionKey(sessionStart: Long): String =
         sessionStart.toString()
 
-    private fun sessionKey(packageName: String, hourBucket: Int, weekday: Int): String =
+    private fun sessionPatternKey(packageName: String, hourBucket: Int, weekday: Int): String =
         packageName + "|" + hourBucket + "|" + weekday
 
     private fun routineKey(sequence: List<String>): String =
@@ -565,7 +565,7 @@ object TrevorBehaviorLearning {
             .map { it.copy(confidence = confidence(it.observations, it.lastSeen, now)) }
             .sortedByDescending { it.confidence }
             .take(MAX_SESSIONS)
-            .associateBy { sessionKey(it.packageName, it.hourBucket, it.weekday) }
+            .associateBy { sessionPatternKey(it.packageName, it.hourBucket, it.weekday) }
 
     private fun pruneRoutines(
         input: Map<String, RoutineCandidate>,
