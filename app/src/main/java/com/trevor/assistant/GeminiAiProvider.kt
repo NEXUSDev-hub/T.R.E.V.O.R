@@ -105,7 +105,7 @@ object GeminiAiProvider {
                 body.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
             }
 
-            val endpoint = ENDPOINT_BASE + model + ":generateContent"
+            val endpoint = ENDPOINT_BASE + MODEL + ":generateContent"
             connection = URL(endpoint).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 20_000
