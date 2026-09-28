@@ -366,6 +366,52 @@ object TrevorAutomationEngine {
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("TREVOR", step.argument))
                 StepExecution(true, "OK • copied text to clipboard", false)
             }
+            "TAP_TEXT" -> {
+                if (!TrevorUiVisionService.isConnected()) {
+                    return@runCatching StepExecution(
+                        false,
+                        "FAIL • TREVOR UI control is not enabled. Enable the TREVOR accessibility service in Android Settings.",
+                        false
+                    )
+                }
+                val ok = TrevorUiVisionService.tap(step.argument)
+                StepExecution(
+                    ok,
+                    if (ok) "OK • tapped visible UI target: " + step.argument
+                    else "FAIL • visible UI target not found: " + step.argument,
+                    retryable = !ok
+                )
+            }
+            "SCROLL" -> {
+                if (!TrevorUiVisionService.isConnected()) {
+                    return@runCatching StepExecution(
+                        false,
+                        "FAIL • TREVOR UI control is not enabled. Enable the TREVOR accessibility service in Android Settings.",
+                        false
+                    )
+                }
+                val ok = TrevorUiVisionService.scroll(step.argument)
+                StepExecution(
+                    ok,
+                    if (ok) "OK • scrolled " + step.argument
+                    else "FAIL • scroll action was not dispatched.",
+                    retryable = !ok
+                )
+            }
+            "INSPECT_SCREEN" -> {
+                val snapshot = TrevorUiVisionService.snapshot(context)
+                if (snapshot == null) {
+                    StepExecution(false, "FAIL • No UI vision snapshot is available. Enable TREVOR accessibility access.", false)
+                } else {
+                    StepExecution(
+                        true,
+                        "OK • screen inspected. App=" + snapshot.packageName +
+                            ", elements=" + snapshot.elements.size +
+                            ", OCR chars=" + snapshot.ocrText.length,
+                        false
+                    )
+                }
+            }
             "OPEN_APP" -> {
                 val packageName = resolvePackage(context, step.argument)
                     ?: return@runCatching StepExecution(false, "FAIL • Could not resolve app: " + step.argument, false)
