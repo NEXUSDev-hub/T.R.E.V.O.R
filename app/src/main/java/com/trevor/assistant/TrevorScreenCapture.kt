@@ -1,6 +1,7 @@
 package com.trevor.assistant
 
 import android.app.*
+import android.content.pm.ServiceInfo
 import android.content.*
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
