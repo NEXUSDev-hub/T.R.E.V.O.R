@@ -55,6 +55,11 @@ object TrevorStructuredPlanner {
             lower.startsWith("share ") -> TrevorAutomationStep("SHARE_TEXT", original.substringAfter(" ").trim(), true, "dispatch")
             lower.startsWith("copy ") -> TrevorAutomationStep("COPY_TEXT", original.substringAfter(" ").trim(), false, "clipboard")
             lower.startsWith("tap ") || lower.startsWith("click ") -> TrevorAutomationStep("TAP_TEXT", original.substringAfter(" ").trim(), true, "ui")
+            lower.startsWith("type ") || lower.startsWith("enter text ") -> TrevorAutomationStep("TYPE_TEXT", original.substringAfter(" ").trim(), true, "ui")
+            lower.startsWith("send message ") -> TrevorAutomationStep("SEND_MESSAGE", original.substringAfter("send message ").trim(), true, "ui")
+            lower.startsWith("search chrome for ") -> TrevorAutomationStep("CHROME_SEARCH", original.substringAfter("search chrome for ").trim(), true, "launch")
+            lower == "reduce volume by 50%" || lower == "turn volume 50% down" || lower == "volume 50% down" ->
+                TrevorAutomationStep("VOLUME_HALF_DOWN", requiresForeground = false, verify = "volume")
             lower == "scroll down" || lower == "scroll up" || lower == "scroll forward" || lower == "scroll backward" ->
                 TrevorAutomationStep("SCROLL", lower.substringAfter("scroll ").trim(), true, "ui")
             lower == "inspect screen" || lower == "see screen" || lower == "analyse screen" || lower == "analyze screen" ->
@@ -65,7 +70,7 @@ object TrevorStructuredPlanner {
         }
     }
 
-    private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT", "TAP_TEXT", "SCROLL")
+    private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT", "TAP_TEXT", "TYPE_TEXT", "SEND_MESSAGE", "CHROME_SEARCH", "SCROLL")
     private val verificationContracts = mapOf(
         "OPEN_WIFI" to setOf("dispatch"),
         "OPEN_BLUETOOTH" to setOf("dispatch"),
@@ -80,6 +85,10 @@ object TrevorStructuredPlanner {
         "USAGE_SUMMARY" to setOf("result"),
         "BATTERY_STATUS" to setOf("result"),
         "TAP_TEXT" to setOf("ui"),
+        "TYPE_TEXT" to setOf("ui"),
+        "SEND_MESSAGE" to setOf("ui"),
+        "CHROME_SEARCH" to setOf("launch"),
+        "VOLUME_HALF_DOWN" to setOf("volume"),
         "SCROLL" to setOf("ui"),
         "INSPECT_SCREEN" to setOf("ui")
     )
