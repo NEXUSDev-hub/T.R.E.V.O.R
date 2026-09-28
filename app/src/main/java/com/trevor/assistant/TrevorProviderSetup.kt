@@ -51,7 +51,6 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
 
         Text("3 • Test Gemini 3.6 Flash", color = Color(0xFF58D9FF), fontSize = 11.sp)
         Button(enabled = !testing && key.isNotBlank(), onClick = {
-            TrevorProviderKeyStore.save(context, TrevorProviderId.GEMINI, key)
             SecureApiKeyStore.save(context, key)
             testing = true
             message = "Testing Gemini 3.6 Flash…"
