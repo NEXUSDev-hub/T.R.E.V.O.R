@@ -14,7 +14,7 @@ object GeminiAiProvider {
     private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
     private const val MAX_INLINE_FILE_BYTES = 20L * 1024L * 1024L
 
-    suspend fun classifyIntent(context: Context, apiKey: String, prompt: String, model: String = MODEL): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun classifyIntent(context: Context, apiKey: String, prompt: String): Result<String> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext Result.failure(IllegalArgumentException("Gemini API key is missing."))
         if (prompt.isBlank()) return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
         var connection: HttpURLConnection? = null
@@ -74,7 +74,6 @@ object GeminiAiProvider {
         apiKey: String,
         prompt: String,
         attachment: TrevorAttachment? = null,
-        model: String = MODEL,
         useGoogleSearch: Boolean = false
     ): Result<String> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext Result.failure(IllegalArgumentException("Gemini API key is missing."))
