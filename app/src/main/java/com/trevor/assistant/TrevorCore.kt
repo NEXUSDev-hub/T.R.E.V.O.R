@@ -238,14 +238,13 @@ object TrevorCore {
             }
         }.take(MAX_ENRICHED_CHARS)
 
-        val result = TrevorMultiProviderRouter.ask(
+        val key = SecureApiKeyStore.load(context)
+        val result = if (key.isNullOrBlank()) Result.failure<String>(IllegalStateException("Gemini API key is not configured."))
+        else GeminiAiProvider.ask(
             context = context.applicationContext,
+            apiKey = key,
             prompt = enriched,
-            forceAdvanced = smartIntent.needsAdvancedModel ||
-                TrevorAiRouting.isComplex(enriched) ||
-                attachment != null ||
-                mode == TrevorMode.ANALYSE ||
-                mode == TrevorMode.PROJECT,
+            attachment = attachment,
             useGoogleSearch = mode == TrevorMode.RESEARCH || smartIntent.needsFreshInformation
         )
         return result.fold(
