@@ -58,6 +58,8 @@ object TrevorStructuredPlanner {
             lower.startsWith("type ") || lower.startsWith("enter text ") -> TrevorAutomationStep("TYPE_TEXT", original.substringAfter(" ").trim(), true, "ui")
             lower.startsWith("send message ") -> TrevorAutomationStep("SEND_MESSAGE", original.substringAfter("send message ").trim(), true, "ui")
             lower.startsWith("search chrome for ") -> TrevorAutomationStep("CHROME_SEARCH", original.substringAfter("search chrome for ").trim(), true, "launch")
+            lower == "wait" || lower.startsWith("wait ") -> TrevorAutomationStep("WAIT", original.substringAfter("wait").trim().ifBlank { "800" }, false, "wait")
+            lower == "approve send" || lower == "approve message" -> TrevorAutomationStep("APPROVE_SEND", requiresForeground = true, verify = "approval")
             lower == "reduce volume by 50%" || lower == "turn volume 50% down" || lower == "volume 50% down" ->
                 TrevorAutomationStep("VOLUME_HALF_DOWN", requiresForeground = false, verify = "volume")
             lower == "scroll down" || lower == "scroll up" || lower == "scroll forward" || lower == "scroll backward" ->
@@ -70,7 +72,7 @@ object TrevorStructuredPlanner {
         }
     }
 
-    private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT", "TAP_TEXT", "TYPE_TEXT", "SEND_MESSAGE", "CHROME_SEARCH", "SCROLL")
+    private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT", "TAP_TEXT", "TYPE_TEXT", "SEND_MESSAGE", "CHROME_SEARCH", "SCROLL", "WAIT")
     private val verificationContracts = mapOf(
         "OPEN_WIFI" to setOf("dispatch"),
         "OPEN_BLUETOOTH" to setOf("dispatch"),
@@ -88,6 +90,8 @@ object TrevorStructuredPlanner {
         "TYPE_TEXT" to setOf("ui"),
         "SEND_MESSAGE" to setOf("ui"),
         "CHROME_SEARCH" to setOf("launch"),
+        "WAIT" to setOf("wait"),
+        "APPROVE_SEND" to setOf("approval"),
         "VOLUME_HALF_DOWN" to setOf("volume"),
         "SCROLL" to setOf("ui"),
         "INSPECT_SCREEN" to setOf("ui")
