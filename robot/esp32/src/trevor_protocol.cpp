@@ -55,4 +55,49 @@ const char* commandName(CommandType type) {
     }
 }
 
+bool encodeResponse(const Response& response, char* output, uint8_t outputSize) {
+    if (output == nullptr || outputSize == 0) return false;
+
+    int written = 0;
+
+    switch (response.type) {
+        case ResponseType::HELLO:
+            written = snprintf(
+                output, outputSize,
+                "HELLO %s %s\n",
+                "TREVOR-RBT-M1",
+                PROTOCOL_VERSION
+            );
+            break;
+
+        case ResponseType::READY:
+            written = snprintf(output, outputSize, "READY\n");
+            break;
+
+        case ResponseType::ACK:
+            written = snprintf(
+                output, outputSize,
+                "ACK %s %u\n",
+                commandName(response.command),
+                response.speed
+            );
+            break;
+
+        case ResponseType::STATUS:
+            written = snprintf(
+                output, outputSize,
+                "STATUS %s %u\n",
+                commandName(response.command),
+                response.speed
+            );
+            break;
+
+        case ResponseType::ERROR:
+            written = snprintf(output, outputSize, "ERROR\n");
+            break;
+    }
+
+    return written > 0 && written < outputSize;
+}
+
 } // namespace trevor
