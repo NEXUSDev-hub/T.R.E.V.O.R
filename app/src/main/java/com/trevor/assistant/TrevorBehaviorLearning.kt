@@ -539,6 +539,9 @@ object TrevorBehaviorLearning {
     private fun sessionKey(sessionStart: Long): String =
         sessionStart.toString()
 
+    private fun sessionKey(packageName: String, hourBucket: Int, weekday: Int): String =
+        packageName + "|" + hourBucket + "|" + weekday
+
     private fun routineKey(sequence: List<String>): String =
         sequence.joinToString(">")
 
