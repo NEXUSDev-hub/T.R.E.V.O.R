@@ -63,7 +63,9 @@ object TrevorProactiveDecisionEngine {
             "- Do not use a canned status message; make it specific to the current context.\n" +
             "- If the context no longer justifies a message, return exactly [NOOP].\n" +
             "- Keep professional mode calm; other personalities may be playful without becoming disruptive."
-        return TrevorMultiProviderRouter.ask(context.applicationContext, prompt).getOrElse { fallback(pending, decision) }.trim().take(600).ifBlank { fallback(pending, decision) }
+        val key = SecureApiKeyStore.load(context)
+        if (key.isNullOrBlank()) return fallback(pending, decision)
+        return GeminiAiProvider.ask(context.applicationContext, key, prompt).getOrElse { fallback(pending, decision) }.trim().take(600).ifBlank { fallback(pending, decision) }
     }
 
     fun markDelivered(context: Context, decision: Decision) {
