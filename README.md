@@ -5,3 +5,5 @@
 A modular Android AI assistant built with Kotlin and Jetpack Compose.
 
 **Created by Abhirup Gupta and Ritesh.**
+
+<!-- Build trigger: 2026-09-28 -->
