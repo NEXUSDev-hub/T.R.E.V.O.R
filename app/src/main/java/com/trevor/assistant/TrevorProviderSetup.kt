@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
-    var key by remember { mutableStateOf(TrevorProviderKeyStore.load(context, TrevorProviderId.GEMINI).orEmpty()) }
+    var key by remember { mutableStateOf(SecureApiKeyStore.load(context).orEmpty()) }
     var message by remember { mutableStateOf("") }
     var testing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -42,12 +42,11 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
             Button(onClick = {
                 if (key.isBlank()) message = "API key cannot be empty."
                 else {
-                    TrevorProviderKeyStore.save(context, TrevorProviderId.GEMINI, key)
                     SecureApiKeyStore.save(context, key)
                     message = "✓ Saved securely on this device."
                 }
             }) { Icon(Icons.Filled.Key, null); Spacer(Modifier.width(6.dp)); Text("SAVE SECURELY") }
-            OutlinedButton(onClick = { TrevorProviderKeyStore.clear(context, TrevorProviderId.GEMINI); SecureApiKeyStore.clear(context); key = ""; message = "Key removed." }) { Text("REMOVE") }
+            OutlinedButton(onClick = { SecureApiKeyStore.clear(context); key = ""; message = "Key removed." }) { Text("REMOVE") }
         }
 
         Text("3 • Test Gemini 3.6 Flash", color = Color(0xFF58D9FF), fontSize = 11.sp)
@@ -57,7 +56,7 @@ fun TrevorProviderSetupScreen(context: Context, onBack: () -> Unit) {
             testing = true
             message = "Testing Gemini 3.6 Flash…"
             scope.launch {
-                val result = TrevorMultiProviderRouter.testSingle(context)
+                val result = GeminiAiProvider.ask(context, SecureApiKeyStore.load(context).orEmpty(), "Reply with exactly: TREVOR connection test successful.")
                 testing = false
                 message = result.fold({ "✓ Gemini 3.6 Flash responded successfully." }, { "✕ Test failed: " + (it.message ?: "Unknown Gemini error.") })
             }
