@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "../include/trevor_safety.h"
 
 namespace trevor {
