@@ -54,13 +54,18 @@ object TrevorStructuredPlanner {
             lower.startsWith("open app ") -> TrevorAutomationStep("OPEN_APP", original.substringAfter("open app ", "").trim(), true, "launch")
             lower.startsWith("share ") -> TrevorAutomationStep("SHARE_TEXT", original.substringAfter(" ").trim(), true, "dispatch")
             lower.startsWith("copy ") -> TrevorAutomationStep("COPY_TEXT", original.substringAfter(" ").trim(), false, "clipboard")
+            lower.startsWith("tap ") || lower.startsWith("click ") -> TrevorAutomationStep("TAP_TEXT", original.substringAfter(" ").trim(), true, "ui")
+            lower == "scroll down" || lower == "scroll up" || lower == "scroll forward" || lower == "scroll backward" ->
+                TrevorAutomationStep("SCROLL", lower.substringAfter("scroll ").trim(), true, "ui")
+            lower == "inspect screen" || lower == "see screen" || lower == "analyse screen" || lower == "analyze screen" ->
+                TrevorAutomationStep("INSPECT_SCREEN", verify = "ui")
             lower.startsWith("analyse my usage") || lower.startsWith("analyze my usage") -> TrevorAutomationStep("USAGE_SUMMARY", verify = "result")
             lower == "show battery" || lower == "check battery" -> TrevorAutomationStep("BATTERY_STATUS", verify = "result")
             else -> null
         }
     }
 
-    private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT")
+    private val argumentActions = setOf("OPEN_APP", "SHARE_TEXT", "COPY_TEXT", "TAP_TEXT", "SCROLL")
     private val verificationContracts = mapOf(
         "OPEN_WIFI" to setOf("dispatch"),
         "OPEN_BLUETOOTH" to setOf("dispatch"),
@@ -73,7 +78,10 @@ object TrevorStructuredPlanner {
         "SHARE_TEXT" to setOf("dispatch"),
         "COPY_TEXT" to setOf("clipboard"),
         "USAGE_SUMMARY" to setOf("result"),
-        "BATTERY_STATUS" to setOf("result")
+        "BATTERY_STATUS" to setOf("result"),
+        "TAP_TEXT" to setOf("ui"),
+        "SCROLL" to setOf("ui"),
+        "INSPECT_SCREEN" to setOf("ui")
     )
     private val supportedActions = verificationContracts.keys
 }
