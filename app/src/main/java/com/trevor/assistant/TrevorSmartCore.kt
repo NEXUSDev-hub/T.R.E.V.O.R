@@ -39,7 +39,9 @@ object TrevorSmartCore {
         if (SecureApiKeyStore.load(context).isNullOrBlank()) return@withContext fallback
         val prompt = "Understand this request by meaning rather than keyword matching. Request: ${input.take(8000)}" +
             if (attachmentPresent) "\nAn attachment is present." else ""
-        TrevorMultiProviderRouter.classifyIntent(context, prompt).fold(
+        val key = SecureApiKeyStore.load(context)
+        if (key.isNullOrBlank()) return@withContext fallback
+        GeminiAiProvider.classifyIntent(context, key, prompt).fold(
             onSuccess = { parseModelIntent(it, attachmentPresent, mode, fallback) },
             onFailure = { fallback }
         )
