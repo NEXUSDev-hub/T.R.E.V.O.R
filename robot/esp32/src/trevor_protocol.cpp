@@ -14,9 +14,10 @@ Command parseCommand(const char* frame) {
 
     char verb[20] = {};
     unsigned int speed = 0;
+    char extra = 0;
 
-    const int fields = sscanf(frame, "%19s %u", verb, &speed);
-    if (fields < 1) return invalidCommand();
+    const int fields = sscanf(frame, "%19s %u %c", verb, &speed, &extra);
+    if (fields < 1 || fields > 2) return invalidCommand();
 
     CommandType type = CommandType::INVALID;
 
@@ -29,6 +30,7 @@ Command parseCommand(const char* frame) {
     if (type == CommandType::INVALID) return invalidCommand();
     if (fields == 1) speed = 100;
     if (speed > MAX_SPEED) return invalidCommand();
+    if (type == CommandType::STOP && speed != 0) return invalidCommand();
 
     return {type, static_cast<uint8_t>(speed)};
 }
