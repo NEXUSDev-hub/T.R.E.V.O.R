@@ -36,6 +36,7 @@ class TrevorUiVisionService : AccessibilityService() {
 
         fun isConnected(): Boolean = instance != null
         fun tap(target: String): Boolean = instance?.tapTarget(target) == true
+        fun typeText(text: String): Boolean = instance?.typeIntoFocusedField(text) == true
         fun scroll(direction: String): Boolean = instance?.scrollTarget(direction) == true
         fun snapshot(context: android.content.Context): TrevorUiSnapshot? =
             TrevorUiVisionStore.latest(context)
@@ -164,6 +165,22 @@ class TrevorUiVisionService : AccessibilityService() {
         node.recycle()
         if (bounds.isEmpty) return false
         return dispatchTap(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+    }
+
+    private fun typeIntoFocusedField(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val focused = findNode(root) { it.isFocused && it.isEditable && it.isEnabled }
+            ?: findNode(root) { it.isEditable && it.isEnabled }
+            ?: return false
+        val args = android.os.Bundle()
+        args.putCharSequence(
+            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+            text
+        )
+        val ok = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        focused.recycle()
+        root.recycle()
+        return ok
     }
 
     private fun scrollTarget(direction: String): Boolean {
