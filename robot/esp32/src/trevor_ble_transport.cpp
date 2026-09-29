@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
-#include <BLEUtils.h>
+#include <BLEUtils.h>\n#include <BLE2902.h>
 
 #include <cstring>
 #include <string>
@@ -77,6 +77,9 @@ void BleTransport::begin(const char* robotId, FrameHandler handler) {
         ROBOT_TX_UUID,
         BLECharacteristic::PROPERTY_NOTIFY
     );
+    // Bluedroid clients need the standard CCCD descriptor to subscribe
+    // reliably to notifications.
+    txCharacteristic->addDescriptor(new BLE2902());
 
     service->start();
 
