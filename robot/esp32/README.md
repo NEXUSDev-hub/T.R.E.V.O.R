@@ -1,28 +1,54 @@
-# T.R.E.V.O.R Robot — M1 ESP32 Firmware Skeleton
+# T.R.E.V.O.R Robot — M1 ESP32 Firmware
 
-M1 establishes the robot-side software boundary without requiring physical hardware.
+M1 now contains the concrete BLE transport boundary while keeping authentication as a separate M2 responsibility.
 
 ## Structure
 
-- `src/main.cpp` — Arduino/ESP32 entry point and safety-controlled command loop.
-- `include/trevor_protocol.h` — transport-independent command/response vocabulary.
+- `src/main.cpp` — ESP32 entry point and safety-controlled command loop.
+- `src/trevor_ble_transport.cpp` — Arduino-ESP32 BLE server, advertising, RX/TX characteristics, connection handling.
+- `include/trevor_ble_transport.h` — BLE transport interface.
+- `include/trevor_protocol.h` — transport-independent command/response vocabulary and BLE UUIDs.
+- `src/trevor_protocol.cpp` — command parser and response encoder.
 - `include/trevor_motor_driver.h` — motor-driver abstraction.
 - `include/trevor_speaker.h` — speaker/status abstraction.
-- `include/trevor_safety.h` — connection/heartbeat safety state.
+- `include/trevor_safety.h` — heartbeat safety state.
 
-## M1 guarantees
+## BLE contract
 
-- Boot state is STOPPED.
-- Unknown commands never drive motors.
-- STOP immediately requests stopped motor output.
-- Commands are bounded by a heartbeat timeout.
-- Speed is range-checked before reaching the motor abstraction.
-- BLE transport can be added without coupling the protocol parser to motor code.
+Service:
+`6f726576-6f72-4d31-9f52-545245564f52`
 
-## Hardware
+RX (phone → robot):
+`6f726576-6f72-5258-9f52-545245564f52`
 
-GPIO assignments are intentionally not finalized in M1. The motor driver abstraction prevents accidental hardware assumptions before the exact ESP32 board and motor driver are selected.
+TX (robot → phone):
+`6f726576-6f72-5458-9f52-545245564f52`
+
+RX accepts one complete ASCII application frame per BLE write. TX sends newline-delimited responses as notifications.
+
+## Security boundary
+
+M1 advertises and accepts BLE connections, but **movement is locked** until M2 authentication explicitly sets the control session as authenticated.
+
+Authentication is cleared on every disconnect.
+
+BLE UUIDs are identifiers, not credentials.
+
+## Safety boundary
+
+- Boot/reset starts stopped.
+- Disconnect causes authorization loss and therefore motor stop.
+- Authentication loss cannot grant movement.
+- Invalid commands stop the robot.
+- Heartbeat timeout stops the robot.
+- Reconnection does not resume previous motion.
+- Speed is validated before motor control.
+- Serial diagnostics cannot bypass the M1 authorization gate.
+
+## Build note
+
+The transport uses the Arduino-ESP32 BLE API (`BLEDevice.h`, `BLEServer.h`, `BLECharacteristic.h`). The exact ESP32 board/core version should be pinned before claiming a hardware build is verified.
 
 ## Next
 
-Phase M1 will add the concrete BLE service/characteristic UUIDs and wire encoding once the exact ESP32 board and transport implementation are selected.
+M2: implement Android BLE discovery/connection and a real authenticated control-session handshake.
