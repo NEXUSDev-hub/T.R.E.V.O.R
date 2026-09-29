@@ -21,6 +21,10 @@ public:
 
     void onConnect(BLEServer*) override {
         owner_->handleConnectionState(true);
+
+        // Send the transport handshake immediately after connection.
+        owner_->sendResponse({ResponseType::HELLO, CommandType::INVALID, 0});
+        owner_->sendResponse({ResponseType::READY, CommandType::INVALID, 0});
     }
 
     void onDisconnect(BLEServer* server) override {
