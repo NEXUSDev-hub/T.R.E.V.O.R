@@ -58,6 +58,8 @@ private:
 
 void BleTransport::begin(const char* robotId, FrameHandler handler) {
     handler_ = handler;
+    strncpy(robotId_, robotId != nullptr ? robotId : DEFAULT_ROBOT_NAME, sizeof(robotId_) - 1);
+    robotId_[sizeof(robotId_) - 1] = '\0';
     connected_ = false;
     authenticated_ = false;
     frameHead_ = 0;
@@ -96,7 +98,11 @@ void BleTransport::begin(const char* robotId, FrameHandler handler) {
 
 void BleTransport::loop(uint32_t nowMs) {
     if (handshakePending_ && connected_ && txCharacteristic != nullptr) {
-        sendResponse({ResponseType::HELLO, CommandType::INVALID, 0});
+        char hello[MAX_FRAME_LENGTH + 1] = {};
+        if (encodeHello(robotId_, hello, sizeof(hello))) {
+            txCharacteristic->setValue(reinterpret_cast<uint8_t*>(hello), strlen(hello));
+            txCharacteristic->notify();
+        }
         sendResponse({ResponseType::READY, CommandType::INVALID, 0});
         handshakePending_ = false;
     }
@@ -104,6 +110,12 @@ void BleTransport::loop(uint32_t nowMs) {
     char frame[MAX_FRAME_LENGTH + 1] = {};
 
     portENTER_CRITICAL(&frameMux);
+    if (queueOverflow_) {
+        queueOverflow_ = false;
+        portEXIT_CRITICAL(&frameMux);
+        if (handler_ != nullptr) handler_("QUEUE_OVERFLOW", nowMs);
+        return;
+    }
     if (frameCount_ == 0) { portEXIT_CRITICAL(&frameMux); return; }
     const uint8_t length = frameQueue_[frameHead_].length;
     memcpy(frame, frameQueue_[frameHead_].data, length + 1);
@@ -159,6 +171,7 @@ void BleTransport::handleConnectionState(bool connected) {
         frameHead_ = 0;
         frameTail_ = 0;
         frameCount_ = 0;
+        queueOverflow_ = false;
         portEXIT_CRITICAL(&frameMux);
         handshakePending_ = false;
     }
@@ -192,6 +205,10 @@ void BleTransport::handleRx(const uint8_t* data, size_t length) {
         slot.data[count] = '\0';
         frameTail_ = static_cast<uint8_t>((frameTail_ + 1) % FRAME_QUEUE_CAPACITY);
         ++frameCount_;
+    } else {
+        // A saturated command queue is a safety fault: the caller will
+        // receive an invalid frame and the main safety path will stop motors.
+        queueOverflow_ = true;
     }
     portEXIT_CRITICAL(&frameMux);
 }
