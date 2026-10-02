@@ -34,6 +34,7 @@ private:
     volatile uint8_t frameHead_ = 0;
     volatile uint8_t frameTail_ = 0;
     volatile uint8_t frameCount_ = 0;
+    volatile bool handshakePending_ = false;
 
     void handleConnectionState(bool connected);
     void handleRx(const uint8_t* data, size_t length);
