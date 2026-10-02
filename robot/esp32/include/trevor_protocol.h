@@ -53,5 +53,6 @@ const char* commandName(CommandType type);
 // Encodes a response as one newline-delimited ASCII frame.
 // Returns false if the output buffer is too small.
 bool encodeResponse(const Response& response, char* output, uint8_t outputSize);
+bool encodeHello(const char* robotId, char* output, uint8_t outputSize);
 
 } // namespace trevor
