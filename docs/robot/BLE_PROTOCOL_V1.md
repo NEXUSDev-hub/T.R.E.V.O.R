@@ -23,7 +23,7 @@ These UUIDs are fixed for T.R.E.V.O.R Robot Protocol v1:
 - RX characteristic (phone → robot): `6f726576-6f72-5258-9f52-545245564f52`
 - TX characteristic (robot → phone): `6f726576-6f72-5458-9f52-545245564f52`
 
-RX is writable. TX supports notifications.
+RX is writable. TX supports notifications.\n\nAfter subscribing to TX notifications, the Android client sends CLIENT_READY. Only then does the robot send its HELLO/READY handshake. This prevents a notification-subscription race.
 
 The UUIDs identify the T.R.E.V.O.R application protocol; they are not an authentication mechanism.
 
@@ -54,7 +54,7 @@ A missing speed defaults to 100 for movement commands in the current parser. And
 
 Speed is an integer from 0 through 100.
 
-## 5. Heartbeat
+## 5. Client handshake\n\nAfter BLE connection and TX notification subscription:\n\n1. Android sends CLIENT_READY.\n2. Robot sends HELLO <robot-id> 1.\n3. Robot sends READY.\n\nCLIENT_READY does not authorize movement.\n\n## 6. Heartbeat
 
 The safety layer uses a heartbeat watchdog. The transport-level heartbeat frame is:
 
@@ -62,7 +62,7 @@ The safety layer uses a heartbeat watchdog. The transport-level heartbeat frame 
 
 An authenticated control session will be required before heartbeat/control frames can authorize movement. Authentication is an M2 concern; M1 must not pretend UUIDs alone provide authorization.
 
-## 6. Responses
+## 7. Responses
 
 Examples:
 
@@ -80,7 +80,7 @@ Response meanings:
 - STATUS — current commanded state.
 - ERROR — frame rejected or an internal error occurred.
 
-## 7. Safety contract
+## 8. Safety contract
 
 1. Boot starts stopped.
 2. STOP requests immediate stop.
@@ -91,7 +91,7 @@ Response meanings:
 7. Authentication is separate from BLE discovery.
 8. Motor code is downstream of protocol validation and safety state.
 
-## 8. M1 test vectors
+## 9. M1 test vectors
 
 | Input | Expected result |
 |---|---|
@@ -102,6 +102,6 @@ Response meanings:
 | `FLY 80\n` | INVALID |
 | empty frame | INVALID |
 
-## 9. Next milestone
+## 10. Next milestone
 
 M1 transport implementation will bind these UUIDs to the ESP32 BLE stack. M2 will add the Android BLE client and authenticated control session.
