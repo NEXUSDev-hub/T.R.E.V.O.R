@@ -3,7 +3,8 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
-#include <BLEUtils.h>\n#include <BLE2902.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
 #include <cstring>
 #include <string>
@@ -21,10 +22,8 @@ public:
 
     void onConnect(BLEServer*) override {
         owner_->handleConnectionState(true);
-
-        // Send the transport handshake immediately after connection.
-        owner_->sendResponse({ResponseType::HELLO, CommandType::INVALID, 0});
-        owner_->sendResponse({ResponseType::READY, CommandType::INVALID, 0});
+        // Defer the handshake to loop(). The phone must first have an
+        // opportunity to subscribe to TX notifications.
     }
 
     void onDisconnect(BLEServer* server) override {
@@ -59,6 +58,7 @@ void BleTransport::begin(const char* robotId, FrameHandler handler) {
     connected_ = false;
     authenticated_ = false;
     framePending_ = false;
+    handshakePending_ = false;
 
     BLEDevice::init(robotId != nullptr ? robotId : DEFAULT_ROBOT_NAME);
 
@@ -90,6 +90,12 @@ void BleTransport::begin(const char* robotId, FrameHandler handler) {
 }
 
 void BleTransport::loop(uint32_t nowMs) {
+    if (handshakePending_ && connected_ && txCharacteristic != nullptr) {
+        sendResponse({ResponseType::HELLO, CommandType::INVALID, 0});
+        sendResponse({ResponseType::READY, CommandType::INVALID, 0});
+        handshakePending_ = false;
+    }
+
     if (!framePending_) return;
 
     char frame[MAX_FRAME_LENGTH + 1] = {};
@@ -138,10 +144,13 @@ bool BleTransport::sendResponse(const Response& response) {
 void BleTransport::handleConnectionState(bool connected) {
     connected_ = connected;
 
-    if (!connected) {
+    if (connected) {
+        handshakePending_ = true;
+    } else {
         // Never carry authorization across a disconnect.
         authenticated_ = false;
         framePending_ = false;
+        handshakePending_ = false;
     }
 }
 
