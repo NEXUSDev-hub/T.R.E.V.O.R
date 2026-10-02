@@ -155,7 +155,11 @@ void BleTransport::handleConnectionState(bool connected) {
     } else {
         // Never carry authorization across a disconnect.
         authenticated_ = false;
-        framePending_ = false;
+        portENTER_CRITICAL(&frameMux);
+        frameHead_ = 0;
+        frameTail_ = 0;
+        frameCount_ = 0;
+        portEXIT_CRITICAL(&frameMux);
         handshakePending_ = false;
     }
 }
