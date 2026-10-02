@@ -60,7 +60,9 @@ void BleTransport::begin(const char* robotId, FrameHandler handler) {
     handler_ = handler;
     connected_ = false;
     authenticated_ = false;
-    framePending_ = false;
+    frameHead_ = 0;
+    frameTail_ = 0;
+    frameCount_ = 0;
     handshakePending_ = false;
 
     BLEDevice::init(robotId != nullptr ? robotId : DEFAULT_ROBOT_NAME);
@@ -99,13 +101,14 @@ void BleTransport::loop(uint32_t nowMs) {
         handshakePending_ = false;
     }
 
-    if (!framePending_) return;
-
     char frame[MAX_FRAME_LENGTH + 1] = {};
 
     portENTER_CRITICAL(&frameMux);
-    memcpy(frame, pendingFrame_, MAX_FRAME_LENGTH + 1);
-    framePending_ = false;
+    if (frameCount_ == 0) { portEXIT_CRITICAL(&frameMux); return; }
+    const uint8_t length = frameQueue_[frameHead_].length;
+    memcpy(frame, frameQueue_[frameHead_].data, length + 1);
+    frameHead_ = static_cast<uint8_t>((frameHead_ + 1) % FRAME_QUEUE_CAPACITY);
+    --frameCount_;
     portEXIT_CRITICAL(&frameMux);
 
     if (handler_ != nullptr) {
@@ -177,17 +180,16 @@ void BleTransport::handleRx(const uint8_t* data, size_t length) {
         if (c < 0x20 || c > 0x7E) return;
     }
 
-    noInterrupts();
-    memcpy(pendingFrame_, data, count);
-    pendingFrame_[count] = '\0';
-    // Clear the unused tail so loop() never sees stale data.
-    memset(
-        pendingFrame_ + count + 1,
-        0,
-        MAX_FRAME_LENGTH - count
-    );
-    framePending_ = true;
-    interrupts();
+    portENTER_CRITICAL(&frameMux);
+    if (frameCount_ < FRAME_QUEUE_CAPACITY) {
+        PendingFrame& slot = frameQueue_[frameTail_];
+        slot.length = static_cast<uint8_t>(count);
+        memcpy(slot.data, data, count);
+        slot.data[count] = '\0';
+        frameTail_ = static_cast<uint8_t>((frameTail_ + 1) % FRAME_QUEUE_CAPACITY);
+        ++frameCount_;
+    }
+    portEXIT_CRITICAL(&frameMux);
 }
 
 } // namespace trevor
