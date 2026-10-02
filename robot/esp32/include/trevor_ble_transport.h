@@ -25,6 +25,7 @@ private:
     class RxCallbacks;
 
     FrameHandler handler_ = nullptr;
+    char robotId_[32] = {};
     volatile bool connected_ = false;
     volatile bool authenticated_ = false;
 
@@ -34,6 +35,7 @@ private:
     volatile uint8_t frameHead_ = 0;
     volatile uint8_t frameTail_ = 0;
     volatile uint8_t frameCount_ = 0;
+    volatile bool queueOverflow_ = false;
     volatile bool handshakePending_ = false;
 
     void handleConnectionState(bool connected);
