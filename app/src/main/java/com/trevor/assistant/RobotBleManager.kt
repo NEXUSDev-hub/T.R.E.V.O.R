@@ -303,7 +303,6 @@ class RobotBleManager(
                 disconnect()
                 return
             }
-            // Now the robot is guaranteed to have a notification path available.
             sendClientReady()
         }
 
@@ -315,17 +314,30 @@ class RobotBleManager(
             RobotBleProtocol.parseLine(characteristic.value)?.let(listener::onFrame)
         }
 
+        private fun handleCharacteristicWrite(status: Int) {
+            writePending = false
+            handler.removeCallbacks(writeTimeout)
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                listener.onError("BLE write failed: $status")
+            }
+        }
+
         @Deprecated("Required for Android 12 and below")
         override fun onCharacteristicWrite(
             g: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
             status: Int
         ) {
-            writePending = false
-            handler.removeCallbacks(writeTimeout)
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                listener.onError("BLE write failed: $status")
-            }
+            handleCharacteristicWrite(status)
+        }
+
+        override fun onCharacteristicWrite(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            handleCharacteristicWrite(status)
         }
     }
 }
