@@ -104,7 +104,7 @@ bool encodeResponse(const Response& response, char* output, uint8_t outputSize) 
 
 bool encodeHello(const char* robotId, char* output, uint8_t outputSize) {
     if (robotId == nullptr || output == nullptr || outputSize == 0) return false;
-    const int written = snprintf(output, outputSize, "HELLO %s %s\\n", robotId, PROTOCOL_VERSION);
+    const int written = snprintf(output, outputSize, "HELLO %s %s\n", robotId, PROTOCOL_VERSION);
     return written > 0 && written < outputSize;
 }
 
