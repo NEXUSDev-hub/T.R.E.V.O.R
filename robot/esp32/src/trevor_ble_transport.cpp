@@ -1,6 +1,8 @@
 #include "../include/trevor_ble_transport.h"
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -13,6 +15,7 @@ namespace trevor {
 
 namespace {
 BLECharacteristic* txCharacteristic = nullptr;
+portMUX_TYPE frameMux = portMUX_INITIALIZER_UNLOCKED;
 constexpr const char* DEFAULT_ROBOT_NAME = "TREVOR Robot";
 }
 
@@ -100,10 +103,10 @@ void BleTransport::loop(uint32_t nowMs) {
 
     char frame[MAX_FRAME_LENGTH + 1] = {};
 
-    noInterrupts();
+    portENTER_CRITICAL(&frameMux);
     memcpy(frame, pendingFrame_, MAX_FRAME_LENGTH + 1);
     framePending_ = false;
-    interrupts();
+    portEXIT_CRITICAL(&frameMux);
 
     if (handler_ != nullptr) {
         handler_(frame, nowMs);
