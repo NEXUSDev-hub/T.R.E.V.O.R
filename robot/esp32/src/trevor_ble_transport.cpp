@@ -25,8 +25,8 @@ public:
 
     void onConnect(BLEServer*) override {
         owner_->handleConnectionState(true);
-        // Defer the handshake to loop(). The phone must first have an
-        // opportunity to subscribe to TX notifications.
+        // Handshake starts only after the client confirms TX notification
+        // subscription with CLIENT_READY.
     }
 
     void onDisconnect(BLEServer* server) override {
@@ -166,7 +166,7 @@ void BleTransport::handleConnectionState(bool connected) {
     connected_ = connected;
 
     if (connected) {
-        handshakePending_ = true;
+        handshakePending_ = false;
     } else {
         // Never carry authorization across a disconnect.
         authenticated_ = false;
@@ -200,7 +200,7 @@ void BleTransport::handleRx(const uint8_t* data, size_t length) {
         if (c < 0x20 || c > 0x7E) return;
     }
 
-    portENTER_CRITICAL(&frameMux);
+    // Start the handshake only after the client has subscribed to TX notifications.\n    // This is transport setup, not movement authorization.\n    if (count == 12 && memcmp(data, "CLIENT_READY", 12) == 0) {\n        handshakePending_ = connected_;\n        return;\n    }\n\n    portENTER_CRITICAL(&frameMux);
     if (frameCount_ < FRAME_QUEUE_CAPACITY) {
         PendingFrame& slot = frameQueue_[frameTail_];
         slot.length = static_cast<uint8_t>(count);
