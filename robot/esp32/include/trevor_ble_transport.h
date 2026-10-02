@@ -28,8 +28,12 @@ private:
     volatile bool connected_ = false;
     volatile bool authenticated_ = false;
 
-    char pendingFrame_[MAX_FRAME_LENGTH + 1] = {};
-    volatile bool framePending_ = false;
+    static constexpr uint8_t FRAME_QUEUE_CAPACITY = 8;
+    struct PendingFrame { uint8_t length; char data[MAX_FRAME_LENGTH + 1]; };
+    PendingFrame frameQueue_[FRAME_QUEUE_CAPACITY] = {};
+    volatile uint8_t frameHead_ = 0;
+    volatile uint8_t frameTail_ = 0;
+    volatile uint8_t frameCount_ = 0;
 
     void handleConnectionState(bool connected);
     void handleRx(const uint8_t* data, size_t length);
