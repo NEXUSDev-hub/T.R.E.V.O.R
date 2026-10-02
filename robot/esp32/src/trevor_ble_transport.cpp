@@ -31,7 +31,6 @@ public:
 
     void onDisconnect(BLEServer* server) override {
         owner_->handleConnectionState(false);
-        delay(20);
         server->startAdvertising();
     }
 
@@ -65,6 +64,7 @@ void BleTransport::begin(const char* robotId, FrameHandler handler) {
     frameHead_ = 0;
     frameTail_ = 0;
     frameCount_ = 0;
+    queueOverflow_ = false;
     handshakePending_ = false;
 
     BLEDevice::init(robotId != nullptr ? robotId : DEFAULT_ROBOT_NAME);
@@ -112,6 +112,9 @@ void BleTransport::loop(uint32_t nowMs) {
     portENTER_CRITICAL(&frameMux);
     if (queueOverflow_) {
         queueOverflow_ = false;
+        frameHead_ = 0;
+        frameTail_ = 0;
+        frameCount_ = 0;
         portEXIT_CRITICAL(&frameMux);
         if (handler_ != nullptr) handler_("QUEUE_OVERFLOW", nowMs);
         return;
