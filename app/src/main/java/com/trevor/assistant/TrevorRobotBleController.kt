@@ -320,12 +320,12 @@ class TrevorRobotBleController(private val context: Context) {
 
     private fun enqueueDrive(left: Int, right: Int, priority: Boolean) {
         val seq = nextSequence()
-        enqueue("D,${left.coerceIn(-255, 255)},${right.coerceIn(-255, 255)},$seq\n", priority)
+        enqueue(TrevorRobotProtocol.drive(left, right, seq), priority)
     }
 
     private fun enqueueStop() {
         val seq = nextSequence()
-        enqueue("S,$seq\n", priority = true)
+        enqueue(TrevorRobotProtocol.stop(seq), priority = true)
     }
 
     private fun enqueue(command: String, priority: Boolean) {
