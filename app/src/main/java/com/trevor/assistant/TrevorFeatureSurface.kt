@@ -63,7 +63,6 @@ fun TrevorFeatureSurface(context: Context) {
         Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = androidx.compose.ui.Alignment.BottomEnd) {
             androidx.compose.material3.ExtendedFloatingActionButton(
                 onClick = { showRobot = true },
-                icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Bluetooth, contentDescription = null) },
                 text = { Text("ROBOT CONTROL") }
             )
         }
