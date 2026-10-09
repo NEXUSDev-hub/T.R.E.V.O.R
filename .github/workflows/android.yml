@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+      - feature/robot-control-center
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
