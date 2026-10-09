@@ -30,6 +30,8 @@ int currentLeft = 0;
 int currentRight = 0;
 uint32_t lastCommandAt = 0;
 uint32_t lastStatusAt = 0;
+long lastAcceptedSequence = -1;
+bool haveAcceptedSequence = false;
 
 void stopMotors() {
   digitalWrite(AIN1, LOW);
@@ -84,6 +86,17 @@ bool parseInteger(const String& text, int& value) {
   return true;
 }
 
+bool isFreshSequence(long candidate) {
+  if (!haveAcceptedSequence) return true;
+  long delta = (candidate - lastAcceptedSequence + 1000000L) % 1000000L;
+  return delta > 0 && delta < 500000L;
+}
+
+void rememberSequence(long sequence) {
+  lastAcceptedSequence = sequence;
+  haveAcceptedSequence = true;
+}
+
 void handleCommand(String line) {
   line.trim();
   if (line.length() == 0 || line.length() > 48) return;
@@ -94,6 +107,8 @@ void handleCommand(String line) {
     lastCommandAt = millis();
     int comma = line.indexOf(',');
     long seq = comma >= 0 ? line.substring(comma + 1).toInt() : -1;
+    // STOP always stops immediately, even if its sequence is malformed or stale.
+    if (seq >= 0 && seq < 1000000L && isFreshSequence(seq)) rememberSequence(seq);
     sendAck(seq, true);
     return;
   }
@@ -125,11 +140,16 @@ void handleCommand(String line) {
     sendAck(-1, false);
     return;
   }
+  if (!isFreshSequence(sequence)) {
+    sendAck(sequence, false); // Reject stale/replayed movement commands.
+    return;
+  }
   if (!clientConnected) {
     stopMotors();
     sendAck(sequence, false);
     return;
   }
+  rememberSequence(sequence);
   driveMotors(left, right);
   lastCommandAt = millis();
   sendAck(sequence, true);
@@ -138,6 +158,8 @@ void handleCommand(String line) {
 class TrevorServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer*) override {
     clientConnected = true;
+    haveAcceptedSequence = false;
+    lastAcceptedSequence = -1;
   }
 
   void onDisconnect(BLEServer*) override {
