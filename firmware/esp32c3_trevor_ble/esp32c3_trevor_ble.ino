@@ -2,6 +2,7 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
+#include <BLE2902.h>
 
 // T.R.E.V.O.R. BLE robot firmware for ESP32-C3 + TB6612FNG.
 // BLE protocol matches TrevorRobotBleController.kt (Nordic-UART UUIDs).
