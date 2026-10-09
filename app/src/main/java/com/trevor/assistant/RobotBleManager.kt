@@ -330,14 +330,5 @@ class RobotBleManager(
         ) {
             handleCharacteristicWrite(status)
         }
-
-        override fun onCharacteristicWrite(
-            g: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic,
-            value: ByteArray,
-            status: Int
-        ) {
-            handleCharacteristicWrite(status)
-        }
-    }
+}
 }

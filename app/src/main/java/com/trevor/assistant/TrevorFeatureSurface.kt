@@ -22,6 +22,7 @@ fun TrevorFeatureSurface(context: Context) {
             .getBoolean("full_intro_seen", false))
     }
     var tab by remember { mutableStateOf("TOOLS") }
+    var showRobot by remember { mutableStateOf(false) }
     val activity = LocalContext.current
     val captureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
@@ -42,7 +43,7 @@ fun TrevorFeatureSurface(context: Context) {
             ) {
                 Text("TREVOR LANDSCAPE TOOL DECK", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("TOOLS", "TERMINAL", "MODES", "VISUAL").forEach { item ->
+                    listOf("TOOLS", "TERMINAL", "MODES", "VISUAL", "ROBOT").forEach { item ->
                         FilterChip(selected = tab == item, onClick = { tab = item }, label = { Text(item) })
                     }
                 }
@@ -51,9 +52,36 @@ fun TrevorFeatureSurface(context: Context) {
                     "TERMINAL" -> TrevorLandscapeTerminal(context)
                     "MODES" -> TrevorModeTutorial()
                     "VISUAL" -> TrevorVisualControls(activity) { captureLauncher.launch(TrevorScreenCapture.permissionIntent(activity)) }
+                    "ROBOT" -> TrevorRobotControlScreen(activity)
                 }
             }
         }
+    }
+
+
+    if (configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) {
+        Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = androidx.compose.ui.Alignment.BottomEnd) {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = { showRobot = true },
+                text = { Text("ROBOT CONTROL") }
+            )
+        }
+    }
+
+    if (showRobot) {
+        AlertDialog(
+            onDismissRequest = { showRobot = false },
+            title = { Text("T.R.E.V.O.R. ROBOT CONTROL") },
+            text = {
+                TrevorRobotControlScreen(
+                    activity,
+                    Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState())
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showRobot = false }) { Text("CLOSE") }
+            }
+        )
     }
 
     if (showIntro) {
