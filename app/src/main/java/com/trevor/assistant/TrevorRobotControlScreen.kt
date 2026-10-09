@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -59,23 +62,27 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
     DisposableEffect(controller) {
         controller.onStatus = { message ->
             status = message
-            connected = message == "Robot link ready"
-            if (message == "Disconnected" || message.startsWith("Connection failed")) connected = false
+            if (message.startsWith("Robot link ready")) connected = true
+            if (message == "Disconnected" || message.startsWith("Disconnected;") ||
+                message.startsWith("Connection failed") || message.startsWith("Robot service") ||
+                message.startsWith("Could not subscribe")) connected = false
         }
         controller.onDevices = { found ->
             devices.clear()
             devices.addAll(found)
         }
         onDispose {
-            controller.send("S")
+            controller.stopDrive()
             controller.disconnect()
             controller.onStatus = null
             controller.onDevices = null
+            controller.onTelemetry = null
         }
     }
 
     val cyan = Color(0xFF51E5FF)
     val panel = Color(0xFF0A1928)
+    val motorPower = speedToMotor(speed)
     Column(
         modifier = modifier.fillMaxWidth().background(panel, RoundedCornerShape(22.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -118,7 +125,7 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
                 Spacer(Modifier.size(6.dp))
                 Text("SCAN DEVICES")
             }
-            OutlinedButton(onClick = { controller.disconnect(); connected = false }) {
+            OutlinedButton(onClick = { controller.stopDrive(); controller.disconnect(); connected = false }) {
                 Text("DISCONNECT")
             }
         }
@@ -129,7 +136,7 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
                 items(devices, key = { it.address }) { item ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF14283A)),
-                        onClick = { controller.connect(item) }
+                        onClick = { controller.connect(item); connected = false }
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -146,13 +153,17 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
             }
         }
 
-        Text("MANUAL DRIVE", color = cyan, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        Text("MANUAL DRIVE · HOLD TO MOVE", color = cyan, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            DriveButton("▲", "FORWARD", enabled = connected) { controller.send("F") }
+            DriveButton("▲", "FORWARD", enabled = connected,
+                onPress = { controller.startDrive(motorPower, motorPower) },
+                onRelease = { controller.stopDrive() })
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                DriveButton("◀", "LEFT", enabled = connected) { controller.send("L") }
-                androidx.compose.material3.FilledTonalButton(
-                    onClick = { controller.send("S") },
+                DriveButton("◀", "LEFT", enabled = connected,
+                    onPress = { controller.startDrive(-motorPower, motorPower) },
+                    onRelease = { controller.stopDrive() })
+                FilledTonalButton(
+                    onClick = { controller.stopDrive() },
                     enabled = connected,
                     modifier = Modifier.size(width = 108.dp, height = 58.dp),
                     colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
@@ -165,32 +176,50 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
                     Spacer(Modifier.size(4.dp))
                     Text("STOP", fontWeight = FontWeight.Black)
                 }
-                DriveButton("▶", "RIGHT", enabled = connected) { controller.send("R") }
+                DriveButton("▶", "RIGHT", enabled = connected,
+                    onPress = { controller.startDrive(motorPower, -motorPower) },
+                    onRelease = { controller.stopDrive() })
             }
-            DriveButton("▼", "REVERSE", enabled = connected) { controller.send("B") }
+            DriveButton("▼", "REVERSE", enabled = connected,
+                onPress = { controller.startDrive(-motorPower, -motorPower) },
+                onRelease = { controller.stopDrive() })
         }
 
-        Text("Speed target: ${speed.toInt()}% (UI preview)", color = Color(0xFFB7C9D9), style = MaterialTheme.typography.bodySmall)
-        androidx.compose.material3.Slider(
-            value = speed,
-            onValueChange = { speed = it },
-            valueRange = 20f..100f,
-            enabled = connected
-        )
+        Text("Motor power: ${speed.toInt()}% · PWM $motorPower/255", color = Color(0xFFB7C9D9), style = MaterialTheme.typography.bodySmall)
+        Slider(value = speed, onValueChange = { speed = it }, valueRange = 20f..100f, enabled = connected)
         Text(
-            "Safety: movement needs matching ESP32 firmware. Configure the ESP32 to stop its motors if no command arrives for 500 ms.",
+            "Release a direction to stop. Firmware watchdog also stops movement after 500 ms without a command; disconnecting stops the motors.",
             color = Color(0xFFFFD38A),
             style = MaterialTheme.typography.bodySmall
         )
     }
 }
 
+private fun speedToMotor(speedPercent: Float): Int =
+    (speedPercent.coerceIn(20f, 100f) * 255f / 100f).toInt().coerceIn(51, 255)
+
 @Composable
-private fun DriveButton(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+private fun DriveButton(
+    label: String,
+    description: String,
+    enabled: Boolean,
+    onPress: () -> Unit,
+    onRelease: () -> Unit
+) {
     FilledTonalButton(
-        onClick = onClick,
+        onClick = { },
         enabled = enabled,
-        modifier = Modifier.size(width = 92.dp, height = 54.dp),
+        modifier = Modifier
+            .size(width = 92.dp, height = 54.dp)
+            .pointerInput(enabled, onPress, onRelease) {
+                detectTapGestures(
+                    onPress = {
+                        if (enabled) onPress()
+                        tryAwaitRelease()
+                        onRelease()
+                    }
+                )
+            },
         shape = RoundedCornerShape(15.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
