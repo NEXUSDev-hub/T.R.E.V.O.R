@@ -60,12 +60,13 @@ fun TrevorFeatureSurface(context: Context) {
 
 
     if (configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) {
-        androidx.compose.material3.ExtendedFloatingActionButton(
-            onClick = { showRobot = true },
-            modifier = Modifier.padding(16.dp),
-            icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Bluetooth, contentDescription = null) },
-            text = { Text("ROBOT CONTROL") }
-        )
+        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = androidx.compose.ui.Alignment.BottomEnd) {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = { showRobot = true },
+                icon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Bluetooth, contentDescription = null) },
+                text = { Text("ROBOT CONTROL") }
+            )
+        }
     }
 
     if (showRobot) {
