@@ -67,7 +67,11 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
             if (message.startsWith("Robot link ready")) connected = true
             if (message == "Disconnected" || message.startsWith("Disconnected;") ||
                 message.startsWith("Connection failed") || message.startsWith("Robot service") ||
-                message.startsWith("Could not subscribe")) connected = false
+                message.startsWith("Could not subscribe") ||
+                message.startsWith("BLE command write failed") ||
+                message.startsWith("Could not queue robot command") ||
+                message.startsWith("BLE write timed out") ||
+                message.startsWith("Bluetooth permission was revoked")) connected = false
         }
         controller.onDevices = { found ->
             devices.clear()
