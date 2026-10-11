@@ -51,6 +51,7 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
     val controller = remember(context) { TrevorRobotBleController(context.applicationContext) }
     val devices = remember { mutableStateListOf<TrevorRobotBleController.DeviceItem>() }
     var status by remember { mutableStateOf("Not connected") }
+    var telemetry by remember { mutableStateOf("Waiting for robot telemetry") }
     var connected by remember { mutableStateOf(false) }
     var speed by remember { mutableStateOf(55f) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -72,6 +73,7 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
             devices.clear()
             devices.addAll(found)
         }
+        controller.onTelemetry = { message -> telemetry = message }
         onDispose {
             controller.stopDrive()
             controller.disconnect()
@@ -114,6 +116,7 @@ fun TrevorRobotControlScreen(context: Context, modifier: Modifier = Modifier) {
         }
 
         Text(status, color = Color(0xFFB7C9D9), style = MaterialTheme.typography.bodySmall)
+        Text("TELEMETRY · $telemetry", color = Color(0xFF9DB2C5), style = MaterialTheme.typography.labelSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = {
