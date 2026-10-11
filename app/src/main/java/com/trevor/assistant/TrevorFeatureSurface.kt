@@ -61,10 +61,9 @@ fun TrevorFeatureSurface(context: Context) {
 
     if (configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) {
         Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = androidx.compose.ui.Alignment.BottomEnd) {
-            androidx.compose.material3.ExtendedFloatingActionButton(
-                onClick = { showRobot = true },
-                text = { Text("ROBOT CONTROL") }
-            )
+            Button(onClick = { showRobot = true }) {
+                Text("ROBOT CONTROL")
+            }
         }
     }
 
