@@ -29,4 +29,6 @@ The app refreshes held movement commands every 150 ms. Firmware independently st
 4. Power motors from a suitable separate motor supply; never power motors from the ESP32 3.3 V pin.
 5. Keep wheels off the floor for first tests. Confirm each wheel's direction and stop behavior before putting the robot down.
 
+**Security limitation:** this prototype does not authenticate or encrypt the BLE control session. A nearby compatible BLE client may be able to issue motor commands. Use only in a controlled test area and keep the wheels raised during initial tests.
+
 This source has not yet been compiled or tested on physical hardware. Pin mapping and motor polarity must be verified before driving.
