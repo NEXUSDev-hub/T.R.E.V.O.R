@@ -101,20 +101,26 @@ void handleCommand(String line) {
   line.trim();
   if (line.length() == 0 || line.length() > 48) return;
 
-  // Emergency stop is deliberately simple and accepted even if the sequence is malformed.
+  // STOP is fail-safe: even a malformed STOP-like frame must never keep motion going.
   if (line.startsWith("S")) {
     stopMotors();
     lastCommandAt = millis();
-    int comma = line.indexOf(',');
-    long seq = comma >= 0 ? line.substring(comma + 1).toInt() : -1;
-    // STOP always stops immediately, even if its sequence is malformed or stale.
-    if (seq >= 0 && seq < 1000000L && isFreshSequence(seq)) rememberSequence(seq);
-    sendAck(seq, true);
+    const bool stopSyntaxValid = line.startsWith("S,") && line.indexOf(',', 2) < 0;
+    const String seqText = stopSyntaxValid ? line.substring(2) : String("");
+    char* end = nullptr;
+    long seq = seqText.length() > 0 ? strtol(seqText.c_str(), &end, 10) : -1;
+    const bool validSequence = seqText.length() > 0 && end != seqText.c_str() &&
+        *end == '\0' && seq >= 0 && seq < 1000000L;
+    // Stop immediately regardless of sequence freshness; only valid fresh sequences
+    // advance the replay guard.
+    if (validSequence && isFreshSequence(seq)) rememberSequence(seq);
+    sendAck(validSequence && stopSyntaxValid ? seq : -1, validSequence && stopSyntaxValid);
     return;
   }
 
   // D,<left>,<right>,<sequence>
   if (!line.startsWith("D,")) {
+    stopMotors();
     sendAck(-1, false);
     return;
   }
@@ -131,12 +137,14 @@ void handleCommand(String line) {
   String seqText = line.substring(second + 1);
   if (!parseInteger(leftText, left) || !parseInteger(rightText, right) ||
       seqText.length() == 0 || seqText.length() > 9) {
+    stopMotors();
     sendAck(-1, false);
     return;
   }
   char* end = nullptr;
   long sequence = strtol(seqText.c_str(), &end, 10);
   if (end == seqText.c_str() || *end != '\0' || sequence < 0 || sequence > 999999) {
+    stopMotors();
     sendAck(-1, false);
     return;
   }
