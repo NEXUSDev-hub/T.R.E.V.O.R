@@ -50,6 +50,8 @@ class TrevorUiVisionService : AccessibilityService() {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Volatile private var screenshotInFlight = false
+    private var lastScreenshotAt = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -88,46 +90,59 @@ class TrevorUiVisionService : AccessibilityService() {
         // On Android 11+, OCR the actual visible screen locally as a second
         // perception channel. No screenshot is uploaded anywhere.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching {
+            val now = System.currentTimeMillis()
+            // Accessibility events can fire many times per second (typing, animations).
+            // Keep OCR bounded to one screenshot at a time and throttle capture frequency.
+            if (screenshotInFlight || now - lastScreenshotAt < 750L) return
+            screenshotInFlight = true
+            lastScreenshotAt = now
+            val started = runCatching {
                 takeScreenshot(
                     android.view.Display.DEFAULT_DISPLAY,
                     mainExecutor,
                     object : TakeScreenshotCallback {
                         override fun onSuccess(result: ScreenshotResult) {
                             scope.launch {
-                                runCatching {
-                                    val buffer = result.hardwareBuffer
-                                    val bitmap = try {
-                                        android.graphics.Bitmap.wrapHardwareBuffer(
-                                            buffer,
-                                            result.colorSpace
-                                        )
-                                    } catch (e: Exception) {
-                                        buffer.close()
-                                        throw e
-                                    }
-                                    if (bitmap != null) {
-                                        try {
-                                            val text = TrevorOcr.recognize(bitmap).take(12000)
-                                            TrevorUiVisionStore.updateOcr(
-                                                this@TrevorUiVisionService,
-                                                text
+                                try {
+                                    runCatching {
+                                        val buffer = result.hardwareBuffer
+                                        val bitmap = try {
+                                            android.graphics.Bitmap.wrapHardwareBuffer(
+                                                buffer,
+                                                result.colorSpace
                                             )
-                                        } finally {
-                                            bitmap.recycle()
+                                        } catch (e: Exception) {
+                                            buffer.close()
+                                            throw e
+                                        }
+                                        if (bitmap != null) {
+                                            try {
+                                                val text = TrevorOcr.recognize(bitmap).take(12000)
+                                                TrevorUiVisionStore.updateOcr(
+                                                    this@TrevorUiVisionService,
+                                                    text
+                                                )
+                                            } finally {
+                                                bitmap.recycle()
+                                                buffer.close()
+                                            }
+                                        } else {
                                             buffer.close()
                                         }
-                                    } else {
-                                        buffer.close()
                                     }
+                                } finally {
+                                    screenshotInFlight = false
                                 }
                             }
                         }
 
-                        override fun onFailure(errorCode: Int) = Unit
+                        override fun onFailure(errorCode: Int) {
+                            screenshotInFlight = false
+                        }
                     }
                 )
             }
+            if (started.isFailure) screenshotInFlight = false
         }
     }
 
