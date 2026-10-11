@@ -182,14 +182,22 @@ class TrevorCommandCallbacks : public BLECharacteristicCallbacks {
     std::string raw = characteristic->getValue();
     if (raw.empty()) return;
     static String buffer;
+    static bool discardingOversizedFrame = false;
     for (char c : raw) {
+      if (discardingOversizedFrame) {
+        if (c == '\n' || c == '\r') discardingOversizedFrame = false;
+        continue;
+      }
       if (c == '\n' || c == '\r') {
         if (buffer.length() > 0) handleCommand(buffer);
         buffer = "";
       } else if (buffer.length() < 48) {
         buffer += c;
       } else {
+        // Discard the entire oversized frame until its delimiter. Never parse
+        // a suffix of malformed input as a new movement command.
         buffer = "";
+        discardingOversizedFrame = true;
         stopMotors();
         notifyText("FAULT,COMMAND_TOO_LONG\n");
       }
