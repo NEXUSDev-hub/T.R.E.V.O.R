@@ -113,7 +113,10 @@ class TrevorRobotBleController(private val context: Context) {
             }
 
             override fun onScanFailed(errorCode: Int) {
-                postStatus("BLE scan failed ($errorCode)")
+                handler.post {
+                    stopScan()
+                    postStatus("BLE scan failed ($errorCode)")
+                }
             }
         }
         scannerCallback = callback
@@ -276,6 +279,7 @@ class TrevorRobotBleController(private val context: Context) {
             if (g !== gatt || characteristic.uuid != TX_UUID) return
             val message = value.toString(Charsets.UTF_8).trim()
             handler.post {
+                if (g !== gatt) return@post
                 if (message.startsWith("ACK,")) postStatus("Robot link ready · $message")
                 else onTelemetry?.invoke(message)
             }
@@ -286,6 +290,7 @@ class TrevorRobotBleController(private val context: Context) {
             if (g === gatt && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 val message = characteristic.value?.toString(Charsets.UTF_8)?.trim().orEmpty()
                 handler.post {
+                    if (g !== gatt) return@post
                     if (message.startsWith("ACK,")) postStatus("Robot link ready · $message")
                     else onTelemetry?.invoke(message)
                 }
