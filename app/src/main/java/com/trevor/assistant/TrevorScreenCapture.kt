@@ -63,6 +63,9 @@ class TrevorScreenCaptureService : Service() {
 
     private fun captureOnce(resultCode: Int, data: Intent) {
         scope.launch {
+            var virtual: android.hardware.display.VirtualDisplay? = null
+            var capturedImage: android.media.Image? = null
+            var bitmap: Bitmap? = null
             try {
                 val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                 projection = manager.getMediaProjection(resultCode, data)
@@ -71,34 +74,49 @@ class TrevorScreenCaptureService : Service() {
                 val height = metrics.heightPixels.coerceAtMost(1920)
                 reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
                 val localReader = reader ?: return@launch
-                val virtual = projection?.createVirtualDisplay(
+                virtual = projection?.createVirtualDisplay(
                     "TREVOR-Visual",
                     width, height, metrics.densityDpi,
                     android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     localReader.surface, null, null
                 ) ?: return@launch
-                val image = withTimeoutOrNull(3000) {
-                    var captured: android.media.Image? = null
-                    while (captured == null) {
-                        captured = localReader.acquireLatestImage()
-                        if (captured == null) delay(40)
+
+                capturedImage = withTimeoutOrNull(3000) {
+                    var image: android.media.Image? = null
+                    while (image == null) {
+                        image = localReader.acquireLatestImage()
+                        if (image == null) delay(40)
                     }
-                    captured
+                    image
+                } ?: return@launch
+
+                val plane = capturedImage!!.planes[0]
+                // ImageReader rows can be padded beyond width * pixelStride. Copy
+                // into a padded bitmap first, then crop the visible screen region.
+                val rowPadding = plane.rowStride - plane.pixelStride * width
+                val paddedWidth = width + (rowPadding / plane.pixelStride)
+                val paddedBitmap = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+                val visibleBitmap = try {
+                    paddedBitmap.copyPixelsFromBuffer(plane.buffer)
+                    Bitmap.createBitmap(paddedBitmap, 0, 0, width, height)
+                } finally {
+                    paddedBitmap.recycle()
                 }
-                if (image != null) {
-                    val plane = image.planes[0]
-                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    bitmap.copyPixelsFromBuffer(plane.buffer)
-                    val text = TrevorOcr.recognize(bitmap).take(30000)
-                    TrevorScreenCaptureStore.save(this@TrevorScreenCaptureService, width, height, text)
-                    bitmap.recycle()
-                    image.close()
-                }
-                virtual.release()
-            } catch (_: Throwable) {
+                bitmap = visibleBitmap
+                val text = TrevorOcr.recognize(visibleBitmap).take(30000)
+                TrevorScreenCaptureStore.save(this@TrevorScreenCaptureService, width, height, text)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Capture is best-effort; always release projection/image resources below.
             } finally {
+                bitmap?.recycle()
+                capturedImage?.close()
+                virtual?.release()
                 reader?.close()
+                reader = null
                 projection?.stop()
+                projection = null
                 stopSelf()
             }
         }
