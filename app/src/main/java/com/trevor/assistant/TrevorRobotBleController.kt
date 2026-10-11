@@ -159,6 +159,12 @@ class TrevorRobotBleController(private val context: Context) {
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             handler.post {
+                // Late callbacks from a connection we already replaced must never
+                // clear state belonging to the current GATT session.
+                if (g !== gatt) {
+                    try { g.close() } catch (_: SecurityException) {}
+                    return@post
+                }
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     postStatus("Connection failed ($status)")
                     closeGatt(g)
@@ -267,7 +273,7 @@ class TrevorRobotBleController(private val context: Context) {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            if (characteristic.uuid != TX_UUID) return
+            if (g !== gatt || characteristic.uuid != TX_UUID) return
             val message = value.toString(Charsets.UTF_8).trim()
             handler.post {
                 if (message.startsWith("ACK,")) postStatus("Robot link ready · $message")
@@ -277,7 +283,7 @@ class TrevorRobotBleController(private val context: Context) {
 
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (g === gatt && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 val message = characteristic.value?.toString(Charsets.UTF_8)?.trim().orEmpty()
                 handler.post {
                     if (message.startsWith("ACK,")) postStatus("Robot link ready · $message")
@@ -370,11 +376,15 @@ class TrevorRobotBleController(private val context: Context) {
             }
             writePending = true
             val timeout = Runnable {
+                // Stop the local refresh loop as well: otherwise held controls
+                // would keep adding drive frames after a stalled GATT write.
+                stopHold()
                 writePending = false
                 writeQueue.clear()
-                postStatus("BLE write timed out; stop and reconnect")
-                // A fresh STOP is attempted after the queue is reset.
-                enqueueStop()
+                postStatus("BLE write timed out; disconnecting for safety")
+                // Force the firmware's disconnect watchdog path if the GATT
+                // transport is stuck and cannot deliver a STOP frame.
+                disconnect()
             }
             writeTimeout = timeout
             handler.postDelayed(timeout, 1_200L)
