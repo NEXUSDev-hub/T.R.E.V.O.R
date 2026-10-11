@@ -266,7 +266,13 @@ class TrevorRobotBleController(private val context: Context) {
                 writeTimeout?.let(handler::removeCallbacks)
                 writeTimeout = null
                 writePending = false
-                if (status != BluetoothGatt.GATT_SUCCESS) postStatus("BLE command write failed ($status)")
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    stopHold()
+                    writeQueue.clear()
+                    postStatus("BLE command write failed ($status); disconnecting for safety")
+                    disconnect()
+                    return@post
+                }
                 flushWriteQueue()
             }
         }
@@ -375,8 +381,10 @@ class TrevorRobotBleController(private val context: Context) {
                 activeGatt.writeCharacteristic(characteristic)
             }
             if (!started) {
-                postStatus("Could not queue robot command")
-                if (bytes.firstOrNull() != 'S'.code.toByte()) writeQueue.clear()
+                stopHold()
+                writeQueue.clear()
+                postStatus("Could not queue robot command; disconnecting for safety")
+                disconnect()
                 return
             }
             writePending = true
