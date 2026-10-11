@@ -179,11 +179,12 @@ class TrevorServerCallbacks : public BLEServerCallbacks {
 
 class TrevorCommandCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* characteristic) override {
-    std::string raw = characteristic->getValue();
-    if (raw.empty()) return;
+    String raw = characteristic->getValue();
+    if (raw.length() == 0) return;
     static String buffer;
     static bool discardingOversizedFrame = false;
-    for (char c : raw) {
+    for (size_t i = 0; i < raw.length(); ++i) {
+      const char c = raw[i];
       if (discardingOversizedFrame) {
         if (c == '\n' || c == '\r') discardingOversizedFrame = false;
         continue;
