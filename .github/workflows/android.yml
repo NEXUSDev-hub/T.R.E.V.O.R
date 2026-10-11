@@ -65,3 +65,21 @@ jobs:
           name: TREVOR-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  firmware:
+    name: Compile ESP32-C3 robot firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install pinned ESP32 Arduino core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.0.7
+
+      - name: Compile active BLE motor-control firmware
+        run: arduino-cli compile --fqbn esp32:esp32:esp32c3 firmware/esp32c3_trevor_ble
