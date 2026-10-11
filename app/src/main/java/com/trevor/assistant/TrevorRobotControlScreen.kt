@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -206,17 +207,26 @@ private fun DriveButton(
     onPress: () -> Unit,
     onRelease: () -> Unit
 ) {
+    // Callback lambdas are refreshed without restarting the active pointer gesture.
+    // Restarting pointerInput on each recomposition could cancel a hold without sending STOP.
+    val currentOnPress by rememberUpdatedState(onPress)
+    val currentOnRelease by rememberUpdatedState(onRelease)
+
     FilledTonalButton(
         onClick = { },
         enabled = enabled,
         modifier = Modifier
             .size(width = 92.dp, height = 54.dp)
-            .pointerInput(enabled, onPress, onRelease) {
+            .pointerInput(enabled) {
                 detectTapGestures(
                     onPress = {
-                        if (enabled) onPress()
-                        tryAwaitRelease()
-                        onRelease()
+                        try {
+                            if (enabled) currentOnPress()
+                            tryAwaitRelease()
+                        } finally {
+                            // Also stop on cancellation (e.g. gesture interruption or recomposition).
+                            currentOnRelease()
+                        }
                     }
                 )
             },
