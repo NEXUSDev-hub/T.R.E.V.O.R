@@ -50,6 +50,9 @@ jobs:
       - name: Part 5 unit tests
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
 
+      - name: Android lint audit
+        run: ./gradlew --no-daemon --stacktrace lintDebug
+
       - name: Clean debug build
         run: ./gradlew --no-daemon --stacktrace clean assembleDebug
 
