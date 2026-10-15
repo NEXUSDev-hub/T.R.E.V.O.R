@@ -131,6 +131,7 @@ class RobotBleManager(
         gatt = device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
+    @SuppressLint("MissingPermission")
     fun disconnect() {
         handler.removeCallbacks(writeTimeout)
         writePending = false
@@ -140,15 +141,12 @@ class RobotBleManager(
         val current = gatt
         gatt = null
         if (current != null) {
-            if (hasRequiredPermissions()) {
-                @SuppressLint("MissingPermission")
-                fun closeGatt() {
-                    current.disconnect()
-                    current.close()
-                }
-                closeGatt()
-            } else {
-                current.close()
+            try {
+                if (hasRequiredPermissions()) current.disconnect()
+            } catch (_: SecurityException) {
+                // Permission may be revoked between the check and the Bluetooth call.
+            } finally {
+                runCatching { current.close() }
             }
         }
         updateState(State.DISCONNECTED)
