@@ -77,7 +77,8 @@ class MainActivity : ComponentActivity() {
                     mimeType = "text/plain",
                     sizeBytes = good.sumOf { it.sizeBytes ?: 0L },
                     extractedText = combined.take(120000),
-                    extractable = true
+                    extractable = true,
+                    sourceFiles = good
                 )
             }
             if (failed.isNotEmpty()) {
