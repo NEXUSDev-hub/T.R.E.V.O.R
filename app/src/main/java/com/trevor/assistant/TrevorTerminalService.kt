@@ -72,20 +72,27 @@ object TrevorTerminalService {
                 sendRaw(clean)
                 sendRaw("printf '\\n" + marker + ":\$?\\n'")
                 val output = StringBuilder()
+                var truncated = false
                 while (true) {
                     val line = reader?.readLine() ?: break
                     if (line.startsWith(marker + ":")) {
                         val code = line.substringAfter(':').toIntOrNull() ?: 0
-                        if (code != 0) output.append("\n[exit ").append(code).append(']')
+                        if (code != 0 && !truncated) output.append("\n[exit ").append(code).append(']')
                         break
                     }
-                    if (output.isNotEmpty()) output.append('\n')
-                    output.append(line)
-                    if (output.length > 64_000) {
-                        output.append("\n[output truncated at 64 KB]")
-                        break
+                    // Keep draining until this command's marker even after the display
+                    // limit is reached, so leftover output cannot corrupt the next command.
+                    if (!truncated) {
+                        val extra = line.length + if (output.isEmpty()) 0 else 1
+                        if (output.length + extra <= 64_000) {
+                            if (output.isNotEmpty()) output.append('\n')
+                            output.append(line)
+                        } else {
+                            truncated = true
+                        }
                     }
                 }
+                if (truncated) output.append("\n[output truncated at 64 KB]")
                 if (output.isEmpty()) "(command completed with no output)" else output.toString()
             }
         }
