@@ -2,6 +2,7 @@ package com.trevor.assistant
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -196,7 +197,7 @@ class RobotBleManager(
                 characteristic,
                 bytes,
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            ) == BluetoothGatt.GATT_SUCCESS
+            ) == BluetoothStatusCodes.SUCCESS
         } else {
             characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             characteristic.value = bytes
