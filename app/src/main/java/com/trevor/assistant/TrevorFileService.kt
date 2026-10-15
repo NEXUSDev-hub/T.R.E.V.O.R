@@ -12,7 +12,9 @@ data class TrevorAttachment(
     val mimeType: String,
     val sizeBytes: Long?,
     val extractedText: String?,
-    val extractable: Boolean
+    val extractable: Boolean,
+    /** Original files represented by a multi-file selection; empty for a single file. */
+    val sourceFiles: List<TrevorAttachment> = emptyList()
 )
 
 object TrevorFileService {
