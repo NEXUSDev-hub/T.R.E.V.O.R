@@ -127,6 +127,7 @@ void handleCommand(String line) {
   int first = line.indexOf(',', 2);
   int second = first < 0 ? -1 : line.indexOf(',', first + 1);
   if (first < 0 || second < 0) {
+    stopMotors();
     sendAck(-1, false);
     return;
   }
