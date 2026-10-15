@@ -183,7 +183,7 @@ private fun TrevorModeTutorial() {
         "RESEARCH — Research-oriented answers with source verification where supported.",
         "PROJECT — Persistent project context, memory, files and engineering work.",
         "RATIO SHIFTER — Ratios, scaling, percentages and responsive-layout calculations.",
-        "TERMINAL — Controlled diagnostics and technical commands; it does not provide unrestricted shell access."
+        "TERMINAL — App-sandbox shell. Commands run as TREVOR’s app user, not root; use carefully."
     )
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text("MODE TUTORIAL", style = MaterialTheme.typography.titleSmall)
