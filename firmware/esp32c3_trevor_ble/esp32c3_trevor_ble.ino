@@ -4,6 +4,8 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <cstdlib>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 // T.R.E.V.O.R. BLE robot firmware for ESP32-C3 + TB6612FNG.
 // GPIO values are examples: verify your exact board and wiring before power-up.
@@ -32,6 +34,16 @@ uint32_t lastCommandAt = 0;
 uint32_t lastStatusAt = 0;
 long lastAcceptedSequence = -1;
 bool haveAcceptedSequence = false;
+
+// BLE callbacks run on the Bluetooth task. Queue frames so motor GPIO/state is
+// owned by loop(), rather than being mutated concurrently by multiple tasks.
+struct CommandFrame {
+  char text[49];
+};
+QueueHandle_t commandQueue = nullptr;
+volatile bool forceStopRequested = false;
+volatile bool overflowFaultPending = false;
+volatile bool resetSequenceRequested = false;
 
 void stopMotors() {
   digitalWrite(AIN1, LOW);
@@ -167,13 +179,12 @@ void handleCommand(String line) {
 class TrevorServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer*) override {
     clientConnected = true;
-    haveAcceptedSequence = false;
-    lastAcceptedSequence = -1;
+    resetSequenceRequested = true;
   }
 
   void onDisconnect(BLEServer*) override {
     clientConnected = false;
-    stopMotors();
+    forceStopRequested = true;
     BLEDevice::startAdvertising();
   }
 };
@@ -191,7 +202,13 @@ class TrevorCommandCallbacks : public BLECharacteristicCallbacks {
         continue;
       }
       if (c == '\n' || c == '\r') {
-        if (buffer.length() > 0) handleCommand(buffer);
+        if (buffer.length() > 0) {
+          CommandFrame frame{};
+          buffer.toCharArray(frame.text, sizeof(frame.text));
+          if (commandQueue == nullptr || xQueueSend(commandQueue, &frame, 0) != pdTRUE) {
+            forceStopRequested = true;
+          }
+        }
         buffer = "";
       } else if (buffer.length() < 48) {
         buffer += c;
@@ -200,8 +217,8 @@ class TrevorCommandCallbacks : public BLECharacteristicCallbacks {
         // a suffix of malformed input as a new movement command.
         buffer = "";
         discardingOversizedFrame = true;
-        stopMotors();
-        notifyText("FAULT,COMMAND_TOO_LONG\n");
+        forceStopRequested = true;
+        overflowFaultPending = true;
       }
     }
   }
@@ -209,6 +226,10 @@ class TrevorCommandCallbacks : public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
+  commandQueue = xQueueCreate(8, sizeof(CommandFrame));
+  if (commandQueue == nullptr) {
+    Serial.println("ERROR: command queue allocation failed; motors remain stopped.");
+  }
   pinMode(AIN1, OUTPUT);
   pinMode(AIN2, OUTPUT);
   pinMode(PWMA, OUTPUT);
@@ -240,6 +261,28 @@ void setup() {
 }
 
 void loop() {
+  if (resetSequenceRequested) {
+    haveAcceptedSequence = false;
+    lastAcceptedSequence = -1;
+    resetSequenceRequested = false;
+  }
+
+  CommandFrame frame;
+  while (commandQueue != nullptr && xQueueReceive(commandQueue, &frame, 0) == pdTRUE) {
+    handleCommand(String(frame.text));
+  }
+
+  // Apply asynchronous disconnect/overflow/queue-full stops after queued commands
+  // so a stale queued drive frame cannot undo a pending emergency stop.
+  if (forceStopRequested) {
+    forceStopRequested = false;
+    stopMotors();
+    if (overflowFaultPending) {
+      overflowFaultPending = false;
+      notifyText("FAULT,COMMAND_TOO_LONG_OR_QUEUE_FULL\n");
+    }
+  }
+
   const uint32_t now = millis();
   if (moving && (!clientConnected || now - lastCommandAt > COMMAND_TIMEOUT_MS)) {
     stopMotors();
