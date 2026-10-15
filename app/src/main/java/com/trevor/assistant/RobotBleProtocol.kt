@@ -14,7 +14,7 @@ object RobotBleProtocol {
         val normalized = value.trimEnd('\r', '\n') + "\n"
         val bytes = normalized.toByteArray(StandardCharsets.US_ASCII)
         require(bytes.size <= 65) { "Frame exceeds 64-byte payload plus newline" }
-        require(bytes.dropLast(1).all { it.code in 0x20..0x7E }) {
+        require(bytes.dropLast(1).all { it.toInt() in 0x20..0x7E }) {
             "Frame contains unsupported characters"
         }
         return bytes

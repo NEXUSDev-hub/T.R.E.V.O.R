@@ -50,6 +50,8 @@ class TrevorUiVisionService : AccessibilityService() {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Volatile private var screenshotInFlight = false
+    private var lastScreenshotAt = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -74,8 +76,11 @@ class TrevorUiVisionService : AccessibilityService() {
     private fun captureUi(pkg: String) {
         val root = rootInActiveWindow ?: return
         val elements = ArrayList<TrevorUiElement>()
-        collect(root, elements, 0)
-        root.recycle()
+        try {
+            collect(root, elements, 0)
+        } finally {
+            root.recycle()
+        }
 
         TrevorUiVisionStore.save(
             this,
@@ -85,36 +90,59 @@ class TrevorUiVisionService : AccessibilityService() {
         // On Android 11+, OCR the actual visible screen locally as a second
         // perception channel. No screenshot is uploaded anywhere.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching {
+            val now = System.currentTimeMillis()
+            // Accessibility events can fire many times per second (typing, animations).
+            // Keep OCR bounded to one screenshot at a time and throttle capture frequency.
+            if (screenshotInFlight || now - lastScreenshotAt < 750L) return
+            screenshotInFlight = true
+            lastScreenshotAt = now
+            val started = runCatching {
                 takeScreenshot(
                     android.view.Display.DEFAULT_DISPLAY,
                     mainExecutor,
                     object : TakeScreenshotCallback {
                         override fun onSuccess(result: ScreenshotResult) {
                             scope.launch {
-                                runCatching {
-                                    val buffer = result.hardwareBuffer
-                                    val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(
-                                        buffer,
-                                        result.colorSpace
-                                    )
-                                    buffer.close()
-                                    if (bitmap != null) {
-                                        val text = TrevorOcr.recognize(bitmap).take(12000)
-                                        bitmap.recycle()
-                                        TrevorUiVisionStore.updateOcr(
-                                            this@TrevorUiVisionService,
-                                            text
-                                        )
+                                try {
+                                    runCatching {
+                                        val buffer = result.hardwareBuffer
+                                        val bitmap = try {
+                                            android.graphics.Bitmap.wrapHardwareBuffer(
+                                                buffer,
+                                                result.colorSpace
+                                            )
+                                        } catch (e: Exception) {
+                                            buffer.close()
+                                            throw e
+                                        }
+                                        if (bitmap != null) {
+                                            try {
+                                                val text = TrevorOcr.recognize(bitmap).take(12000)
+                                                TrevorUiVisionStore.updateOcr(
+                                                    this@TrevorUiVisionService,
+                                                    text
+                                                )
+                                            } finally {
+                                                bitmap.recycle()
+                                                buffer.close()
+                                            }
+                                        } else {
+                                            buffer.close()
+                                        }
                                     }
+                                } finally {
+                                    screenshotInFlight = false
                                 }
                             }
                         }
 
-                        override fun onFailure(errorCode: Int) = Unit
+                        override fun onFailure(errorCode: Int) {
+                            screenshotInFlight = false
+                        }
                     }
                 )
             }
+            if (started.isFailure) screenshotInFlight = false
         }
     }
 
@@ -149,38 +177,47 @@ class TrevorUiVisionService : AccessibilityService() {
         if (query.isBlank()) return false
         val root = rootInActiveWindow ?: return false
 
-        val node = findNode(root) {
-            it.isEnabled && (
-                it.text?.toString()?.trim()?.lowercase()?.contains(query) == true ||
-                it.contentDescription?.toString()?.trim()?.lowercase()?.contains(query) == true
-            )
+        val node = try {
+            findNode(root) {
+                it.isEnabled && (
+                    it.text?.toString()?.trim()?.lowercase()?.contains(query) == true ||
+                    it.contentDescription?.toString()?.trim()?.lowercase()?.contains(query) == true
+                )
+            }
+        } finally {
+            root.recycle()
         } ?: return false
 
-        if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+        return try {
+            if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                true
+            } else {
+                val bounds = Rect().also { node.getBoundsInScreen(it) }
+                !bounds.isEmpty && dispatchTap(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+            }
+        } finally {
             node.recycle()
-            return true
         }
-
-        val bounds = Rect().also { node.getBoundsInScreen(it) }
-        node.recycle()
-        if (bounds.isEmpty) return false
-        return dispatchTap(bounds.centerX().toFloat(), bounds.centerY().toFloat())
     }
 
     private fun typeIntoFocusedField(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
-        val focused = findNode(root) { it.isFocused && it.isEditable && it.isEnabled }
-            ?: findNode(root) { it.isEditable && it.isEnabled }
-            ?: return false
-        val args = android.os.Bundle()
-        args.putCharSequence(
-            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-            text
-        )
-        val ok = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        focused.recycle()
-        root.recycle()
-        return ok
+        val focused = try {
+            findNode(root) { it.isFocused && it.isEditable && it.isEnabled }
+                ?: findNode(root) { it.isEditable && it.isEnabled }
+        } finally {
+            root.recycle()
+        } ?: return false
+        return try {
+            val args = android.os.Bundle()
+            args.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                text
+            )
+            focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        } finally {
+            focused.recycle()
+        }
     }
 
     private fun scrollTarget(direction: String): Boolean {
@@ -193,10 +230,17 @@ class TrevorUiVisionService : AccessibilityService() {
             AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
         }
 
-        val node = findNode(root) { it.isScrollable }
+        val node = try {
+            findNode(root) { it.isScrollable }
+        } finally {
+            root.recycle()
+        }
         if (node != null) {
-            val ok = node.performAction(action)
-            node.recycle()
+            val ok = try {
+                node.performAction(action)
+            } finally {
+                node.recycle()
+            }
             if (ok) return true
         }
 

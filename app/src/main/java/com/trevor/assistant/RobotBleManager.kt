@@ -2,6 +2,7 @@ package com.trevor.assistant
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -131,6 +132,7 @@ class RobotBleManager(
         gatt = device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
+    @SuppressLint("MissingPermission")
     fun disconnect() {
         handler.removeCallbacks(writeTimeout)
         writePending = false
@@ -140,15 +142,12 @@ class RobotBleManager(
         val current = gatt
         gatt = null
         if (current != null) {
-            if (hasRequiredPermissions()) {
-                @SuppressLint("MissingPermission")
-                fun closeGatt() {
-                    current.disconnect()
-                    current.close()
-                }
-                closeGatt()
-            } else {
-                current.close()
+            try {
+                if (hasRequiredPermissions()) current.disconnect()
+            } catch (_: SecurityException) {
+                // Permission may be revoked between the check and the Bluetooth call.
+            } finally {
+                runCatching { current.close() }
             }
         }
         updateState(State.DISCONNECTED)
@@ -198,7 +197,7 @@ class RobotBleManager(
                 characteristic,
                 bytes,
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            ) == BluetoothGatt.GATT_SUCCESS
+            ) == BluetoothStatusCodes.SUCCESS
         } else {
             characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             characteristic.value = bytes
@@ -330,14 +329,5 @@ class RobotBleManager(
         ) {
             handleCharacteristicWrite(status)
         }
-
-        override fun onCharacteristicWrite(
-            g: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic,
-            value: ByteArray,
-            status: Int
-        ) {
-            handleCharacteristicWrite(status)
-        }
-    }
+}
 }

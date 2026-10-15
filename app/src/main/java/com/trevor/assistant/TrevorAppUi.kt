@@ -61,7 +61,7 @@ private fun modeVisual(mode: TrevorMode): ModeVisual = when (mode) {
     TrevorMode.RESEARCH -> ModeVisual("RESEARCH", "Current answers with Google grounding", Color(0xFF9D8CFF), Icons.Filled.Science)
     TrevorMode.PROJECT -> ModeVisual("PROJECT", "Build, debug and plan without needless rewrites", Color(0xFF6EE7B7), Icons.Filled.Folder)
     TrevorMode.RATIO_SHIFTER -> ModeVisual("RATIO", "Adaptive interface workspace", Color(0xFFFFC66D), Icons.Filled.Transform)
-    TrevorMode.TERMINAL -> ModeVisual("TERMINAL", "Controlled Android diagnostics console", Color(0xFF72F0D1), Icons.Filled.Terminal)
+    TrevorMode.TERMINAL -> ModeVisual("TERMINAL", "App-sandbox shell (not root)", Color(0xFF72F0D1), Icons.Filled.Terminal)
 }
 
 @Composable
@@ -491,7 +491,7 @@ private fun RatioWorkspace(accent: Color, onTool: (String) -> Unit) {
 
 @Composable
 private fun TerminalWorkspace(accent: Color, onTool: (String) -> Unit) {
-    WorkspaceHeader("TREVOR TERMINAL", "Controlled read-only Android diagnostics. Type help to begin.", accent)
+    WorkspaceHeader("TREVOR TERMINAL", "App-sandbox shell: commands run as TREVOR’s app user, not root. Type help to begin.", accent)
     Surface(
         color = Color(0xFF01070B).copy(alpha = 0.92f),
         shape = RoundedCornerShape(15.dp),

@@ -83,11 +83,23 @@ object GeminiAiProvider {
         try {
             val parts = JSONArray().put(JSONObject().put("text", prompt))
             attachment?.let { file ->
-                val bytes = context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() }
-                    ?: throw IllegalArgumentException("Unable to read the attached file.")
-                if (bytes.size > MAX_INLINE_FILE_BYTES) {
-                    throw IllegalArgumentException("Attached file is larger than the 20 MB inline limit.")
-                }
+                // Enforce the size limit while streaming, before allocating an
+                // unbounded byte array for a file whose provider reports no size.
+                val bytes = context.contentResolver.openInputStream(file.uri)?.use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8 * 1024)
+                    var totalBytes = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        totalBytes += count
+                        if (totalBytes > MAX_INLINE_FILE_BYTES) {
+                            throw IllegalArgumentException("Attached file is larger than the 20 MB inline limit.")
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } ?: throw IllegalArgumentException("Unable to read the attached file.")
                 parts.put(
                     JSONObject().put(
                         "inline_data",

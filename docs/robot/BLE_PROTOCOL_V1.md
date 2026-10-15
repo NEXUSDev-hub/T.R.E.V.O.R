@@ -1,107 +1,38 @@
-# T.R.E.V.O.R Robot — BLE Protocol v1
+# T.R.E.V.O.R Robot — BLE Protocols and Compatibility
 
-Status: M1 protocol contract locked  
-Date: 2026-09-28
+Status: two prototypes exist; they are **not wire-compatible**. Do not treat this document as evidence of hardware validation.
 
-## 1. Transport
+## Active manual-drive prototype
 
-Bluetooth Low Energy is the V1 transport.
+The Android screen `TrevorRobotControlScreen.kt` uses `TrevorRobotBleController.kt` and pairs with the Arduino sketch at `firmware/esp32c3_trevor_ble/esp32c3_trevor_ble.ino`.
 
-The application protocol uses **newline-delimited ASCII**. This is intentionally human-readable so the ESP32 can be tested from a serial/BLE debugging tool before the Android controller exists.
+- Service UUID: `6e400001-b5a3-f393-e0a9-e50e24dcca9e`
+- RX characteristic (phone → ESP32): `6e400002-b5a3-f393-e0a9-e50e24dcca9e`
+- TX characteristic (ESP32 → phone): `6e400003-b5a3-f393-e0a9-e50e24dcca9e`
+- Device name: `TREVOR-ROBOT`
 
-- One frame = one line.
-- Frames end with \n.
-- Maximum application frame length: 64 bytes, excluding the newline.
-- UTF-8/ASCII command text is uppercase and space-separated.
-- Unknown, malformed, oversized, or out-of-range frames are rejected and must not move the robot.
+Commands are UTF-8, newline-terminated frames:
 
-## 2. UUIDs
+- `D,<left>,<right>,<sequence>\n` — signed left/right motor PWM values from -255 to 255.
+- `S,<sequence>\n` — stop immediately.
+- `ACK,<sequence>,OK\n` or `ACK,<sequence>,ERR\n` — command acknowledgement.
+- `STAT,<left>,<right>,-1,0\n` — status; battery millivolts are -1 until a voltage sensor is added.
+- `FAULT,MOVEMENT_TIMEOUT\n` — the firmware watchdog stopped motion.
 
-These UUIDs are fixed for T.R.E.V.O.R Robot Protocol v1:
+The app refreshes held movement every 150 ms. Firmware stops motion after 500 ms without a movement command and on BLE disconnect. STOP clears queued movement frames in the app, but a frame already in flight cannot be withdrawn from the BLE stack.
+
+### Safety and security limitations
+
+This prototype does **not** authenticate or encrypt the control session. A nearby compatible BLE client may be able to issue movement commands. Use only in a controlled test area, keep wheels raised for first tests, and do not operate around people, pets, stairs, roads, or fragile objects. Firmware GPIO values are examples and must be checked against the exact ESP32-C3 board and wiring. Neither this sketch nor the Android app has been verified on physical hardware yet.
+
+## Separate M1 safety-oriented scaffold
+
+The files under `robot/esp32/` are a different, security-oriented M1 scaffold. They use different UUIDs:
 
 - Service: `6f726576-6f72-4d31-9f52-545245564f52`
-- RX characteristic (phone → robot): `6f726576-6f72-5258-9f52-545245564f52`
-- TX characteristic (robot → phone): `6f726576-6f72-5458-9f52-545245564f52`
+- RX: `6f726576-6f72-5258-9f52-545245564f52`
+- TX: `6f726576-6f72-5458-9f52-545245564f52`
 
-RX is writable. TX supports notifications.\n\nAfter subscribing to TX notifications, the Android client sends CLIENT_READY. Only then does the robot send its HELLO/READY handshake. This prevents a notification-subscription race.
+That scaffold uses text commands such as `FORWARD 80\n`, `STOP 0\n`, and a `CLIENT_READY` handshake. Its movement authorization is intentionally locked until a future authenticated control-session implementation enables it. The current Android manual-drive screen does not implement that handshake, so **do not pair this scaffold with the active manual-drive screen and expect movement**.
 
-The UUIDs identify the T.R.E.V.O.R application protocol; they are not an authentication mechanism.
-
-## 3. Robot identity
-
-A robot advertises a unique logical ID such as:
-
-`TREVOR-RBT-A7F3`
-
-The current M1 firmware skeleton uses `TREVOR-RBT-M1` as its test identity. A hardware-specific unique ID is a later configuration step.
-
-The Android app must not treat a Bluetooth MAC address as the robot's identity.
-
-## 4. Command frames
-
-### Movement
-
-`FORWARD 80\n`  
-`BACKWARD 50\n`  
-`LEFT 40\n`  
-`RIGHT 40\n`
-
-### Stop
-
-`STOP 0\n`
-
-A missing speed defaults to 100 for movement commands in the current parser. Android should send an explicit speed once the controller is implemented.
-
-Speed is an integer from 0 through 100.
-
-## 5. Client handshake\n\nAfter BLE connection and TX notification subscription:\n\n1. Android sends CLIENT_READY.\n2. Robot sends HELLO <robot-id> 1.\n3. Robot sends READY.\n\nCLIENT_READY does not authorize movement.\n\n## 6. Heartbeat
-
-The safety layer uses a heartbeat watchdog. The transport-level heartbeat frame is:
-
-`HB\n`
-
-An authenticated control session will be required before heartbeat/control frames can authorize movement. Authentication is an M2 concern; M1 must not pretend UUIDs alone provide authorization.
-
-## 7. Responses
-
-Examples:
-
-`HELLO TREVOR-RBT-M1 1\n`  
-`READY\n`  
-`ACK FORWARD 80\n`  
-`STATUS FORWARD 80\n`  
-`ERROR\n`
-
-Response meanings:
-
-- HELLO — robot identity + protocol version.
-- READY — firmware initialized.
-- ACK — command accepted by protocol/safety layers.
-- STATUS — current commanded state.
-- ERROR — frame rejected or an internal error occurred.
-
-## 8. Safety contract
-
-1. Boot starts stopped.
-2. STOP requests immediate stop.
-3. Invalid commands request stop.
-4. Speed is validated on the ESP32.
-5. Missing heartbeat causes stop.
-6. Reconnection never automatically resumes the previous movement command.
-7. Authentication is separate from BLE discovery.
-8. Motor code is downstream of protocol validation and safety state.
-
-## 9. M1 test vectors
-
-| Input | Expected result |
-|---|---|
-| `FORWARD 80\n` | FORWARD, speed 80 |
-| `STOP 0\n` | STOP, speed 0 |
-| `LEFT\n` | LEFT, speed 100 |
-| `BACKWARD 101\n` | INVALID |
-| `FLY 80\n` | INVALID |
-| empty frame | INVALID |
-
-## 10. Next milestone
-
-M1 transport implementation will bind these UUIDs to the ESP32 BLE stack. M2 will add the Android BLE client and authenticated control session.
+Keep these implementations separate until a deliberate protocol migration is designed, implemented, and covered by cross-platform tests.
