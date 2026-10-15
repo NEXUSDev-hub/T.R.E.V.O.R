@@ -74,15 +74,6 @@ fun TrevorApp(
     var screen by remember { mutableStateOf(TrevorScreen.DASHBOARD) }
     LaunchedEffect(Unit) { TrevorBackgroundScheduler.ensureScheduled(context) }
     var settings by remember { mutableStateOf(TrevorSettingsStore.load(context)) }
-    LaunchedEffect(settings.proactiveEnabled) {
-        val intent = android.content.Intent(context, TrevorProactiveService::class.java)
-        if (settings.proactiveEnabled) {
-            androidx.core.content.ContextCompat.startForegroundService(context, intent)
-        } else {
-            context.stopService(intent)
-        }
-    }
-
     fun save(next: TrevorSettings) {
         settings = next
         TrevorSettingsStore.save(context, next)
