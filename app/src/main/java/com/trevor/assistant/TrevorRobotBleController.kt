@@ -2,6 +2,7 @@ package com.trevor.assistant
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -224,7 +225,7 @@ class TrevorRobotBleController(private val context: Context) {
                         return@post
                     }
                     val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == BluetoothGatt.GATT_SUCCESS
+                        g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == BluetoothStatusCodes.SUCCESS
                     } else {
                         @Suppress("DEPRECATION")
                         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -371,7 +372,7 @@ class TrevorRobotBleController(private val context: Context) {
         try {
             val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 activeGatt.writeCharacteristic(characteristic, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) ==
-                    BluetoothGatt.GATT_SUCCESS
+                    BluetoothStatusCodes.SUCCESS
             } else {
                 @Suppress("DEPRECATION")
                 characteristic.value = bytes
