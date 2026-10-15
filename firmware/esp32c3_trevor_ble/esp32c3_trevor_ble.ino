@@ -109,6 +109,11 @@ void rememberSequence(long sequence) {
   haveAcceptedSequence = true;
 }
 
+// M2 security gate: movement remains disabled until authenticated, encrypted BLE
+// session establishment is implemented and verified on both the Android client
+// and ESP32-C3. Do not flip this to true as a workaround.
+static constexpr bool CONTROL_SECURITY_ENABLED = false;
+
 void handleCommand(String line) {
   line.trim();
   if (line.length() == 0 || line.length() > 48) return;
@@ -127,6 +132,15 @@ void handleCommand(String line) {
     // advance the replay guard.
     if (validSequence && isFreshSequence(seq)) rememberSequence(seq);
     sendAck(validSequence && stopSyntaxValid ? seq : -1, validSequence && stopSyntaxValid);
+    return;
+  }
+
+  // Fail closed: this prototype currently has no authenticated/encrypted session.
+  // Always reject movement frames until a real mutual authentication handshake
+  // and encrypted-link enforcement are implemented.
+  if (!CONTROL_SECURITY_ENABLED) {
+    stopMotors();
+    sendAck(-1, false);
     return;
   }
 
