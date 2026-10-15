@@ -23,7 +23,7 @@ The app refreshes held movement every 150 ms. Firmware stops motion after 500 ms
 
 ### Safety and security limitations
 
-This prototype does **not** authenticate or encrypt the control session. A nearby compatible BLE client may be able to issue movement commands. Use only in a controlled test area, keep wheels raised for first tests, and do not operate around people, pets, stairs, roads, or fragile objects. Firmware GPIO values are examples and must be checked against the exact ESP32-C3 board and wiring. Neither this sketch nor the Android app has been verified on physical hardware yet.
+This prototype does **not** authenticate or encrypt the control session. Therefore firmware now has a fail-closed security gate: STOP frames remain accepted, but every movement frame is rejected and the motors are stopped. Do not remove the gate until authenticated pairing and encrypted-link enforcement are implemented and tested on both Android and ESP32-C3. This means the manual-drive UI can connect but motion is intentionally unavailable in this build. Firmware GPIO values are examples and must be checked against the exact ESP32-C3 board and wiring. Neither this sketch nor the Android app has been verified on physical hardware yet.
 
 ## Separate M1 safety-oriented scaffold
 
