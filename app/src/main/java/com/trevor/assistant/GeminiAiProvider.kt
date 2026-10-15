@@ -82,20 +82,30 @@ object GeminiAiProvider {
         var connection: HttpURLConnection? = null
         try {
             val parts = JSONArray().put(JSONObject().put("text", prompt))
-            attachment?.let { file ->
-                val bytes = context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() }
-                    ?: throw IllegalArgumentException("Unable to read the attached file.")
-                if (bytes.size > MAX_INLINE_FILE_BYTES) {
-                    throw IllegalArgumentException("Attached file is larger than the 20 MB inline limit.")
-                }
-                parts.put(
-                    JSONObject().put(
-                        "inline_data",
-                        JSONObject()
-                            .put("mime_type", file.mimeType)
-                            .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
+            attachment?.let { container ->
+                // Multi-file selections retain every original URI. Never upload only
+                // the first URI from the synthetic combined text attachment.
+                val files = container.sourceFiles.ifEmpty { listOf(container) }
+                var totalBytes = 0L
+                for (file in files) {
+                    val bytes = context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() }
+                        ?: throw IllegalArgumentException("Unable to read attached file: ${file.name}")
+                    if (bytes.size > MAX_INLINE_FILE_BYTES) {
+                        throw IllegalArgumentException("Attached file '${file.name}' is larger than the 20 MB inline limit.")
+                    }
+                    totalBytes += bytes.size
+                    if (totalBytes > MAX_INLINE_FILE_BYTES) {
+                        throw IllegalArgumentException("Combined attachments exceed the 20 MB total inline limit.")
+                    }
+                    parts.put(
+                        JSONObject().put(
+                            "inline_data",
+                            JSONObject()
+                                .put("mime_type", file.mimeType)
+                                .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                        )
                     )
-                )
+                }
             }
 
             val body = JSONObject()
