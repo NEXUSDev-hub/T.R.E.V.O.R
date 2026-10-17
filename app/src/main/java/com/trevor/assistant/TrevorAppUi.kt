@@ -151,28 +151,65 @@ private fun TrevorDashboard(
         input = ""
         TrevorStateStore.update { it.copy(lastOutput = null, lastError = null, requestState = TrevorRequestState.PROCESSING) }
         scope.launch {
-            val prompt = buildString {
-                append(clean)
-                attachment?.extractedText?.let {
-                    append("\n\nAttached text context from ${attachment.name}:\n---\n")
-                    append(it)
-                    append("\n---")
+            try {
+                val prompt = buildString {
+                    append(clean)
+                    attachment?.extractedText?.let {
+                        append("\n\nAttached text context from ${attachment.name}:\n---\n")
+                        append(it)
+                        append("\n---")
+                    }
                 }
-            }
-            val result = TrevorCore.process(
-                context = context,
-                command = prompt,
-                aiEnabled = settings.aiEnabled,
-                geminiEnabled = settings.geminiEnabled,
-                conciseResponses = settings.conciseResponses,
-                technicalDetail = settings.technicalDetail,
-                offlineFirst = settings.offlineFirst,
-                mode = mode,
-                attachment = attachment
-            )
-            busy = false
-            if (result is TrevorCoreResult.Error) {
-                // Core has already published the verified error to the shared state.
+                val result = TrevorCore.process(
+                    context = context,
+                    command = prompt,
+                    aiEnabled = settings.aiEnabled,
+                    geminiEnabled = settings.geminiEnabled,
+                    conciseResponses = settings.conciseResponses,
+                    technicalDetail = settings.technicalDetail,
+                    offlineFirst = settings.offlineFirst,
+                    mode = mode,
+                    attachment = attachment
+                )
+                if (result is TrevorCoreResult.Error) {
+                    // Core normally publishes typed failures; keep the UI usable if a
+                    // future core path returns an error without updating shared state.
+                    TrevorStateStore.update {
+                        it.copy(
+                            requestState = TrevorRequestState.ERROR,
+                            orbState = TrevorOrbState.ERROR,
+                            lastOutput = "ERROR\\n" + result.message,
+                            lastError = result.message
+                        )
+                    }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                TrevorStateStore.update {
+                    it.copy(
+                        requestState = TrevorRequestState.ERROR,
+                        orbState = TrevorOrbState.ERROR,
+                        lastOutput = "Request cancelled.",
+                        lastError = "Request cancelled."
+                    )
+                }
+                throw cancelled
+            } catch (error: Exception) {
+                val message = when {
+                    error.message.isNullOrBlank() -> "Something went wrong while processing that request. Please try again."
+                    error.message.orEmpty().contains("timeout", ignoreCase = true) -> "The request timed out. Check your connection and try again."
+                    else -> "T.R.E.V.O.R. couldn't complete that request: " + error.message.orEmpty().take(240)
+                }
+                TrevorStateStore.update {
+                    it.copy(
+                        requestState = TrevorRequestState.ERROR,
+                        orbState = TrevorOrbState.ERROR,
+                        aiState = TrevorAiState.ERROR,
+                        lastOutput = "ERROR\\n" + message,
+                        lastError = message
+                    )
+                }
+            } finally {
+                busy = false
             }
         }
     }
