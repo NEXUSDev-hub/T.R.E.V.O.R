@@ -8,9 +8,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
+import android.Manifest
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
@@ -92,9 +96,11 @@ fun TrevorApp(
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = settings.accent.color,
-        background = Color(0xFF06121E),
-        surface = Color(0xFF0B1D2A),
-        onSurface = Color(0xFFE8FAFF)
+        secondary = Color(0xFF9D8CFF),
+        tertiary = Color(0xFFFFB86B),
+        background = Color(0xFF110E22),
+        surface = Color(0xFF1A1630),
+        onSurface = Color(0xFFFFF0F7)
     )) {
         when (screen) {
             TrevorScreen.DASHBOARD -> TrevorDashboard(context, settings, attachment, onPickFile, onRemoveFile) { screen = TrevorScreen.SETTINGS }
@@ -120,6 +126,10 @@ private fun TrevorDashboard(
     var busy by remember { mutableStateOf(false) }
     val state by TrevorStateStore.state.collectAsState()
     val scope = rememberCoroutineScope()
+    val voicePipeline = remember(context) { TrevorVoicePipeline(context) }
+    var voiceStatus by remember { mutableStateOf("VOICE READY") }
+    var voiceReplyPending by remember { mutableStateOf(false) }
+    DisposableEffect(voicePipeline) { onDispose { voicePipeline.release() } }
     val landscape = LocalConfiguration.current.screenWidthDp > LocalConfiguration.current.screenHeightDp
     val visual = modeVisual(mode)
     var memoryCount by remember { mutableStateOf(0) }
@@ -134,8 +144,8 @@ private fun TrevorDashboard(
         TrevorStateStore.update { it.copy(currentMode = next, orbState = TrevorOrbState.IDLE, lastOutput = null, lastError = null) }
     }
 
-    fun send() {
-        val clean = input.trim()
+    fun send(voiceText: String? = null) {
+        val clean = (voiceText ?: input).trim()
         if (clean.isBlank() || busy) return
         busy = true
         input = ""
@@ -167,22 +177,72 @@ private fun TrevorDashboard(
         }
     }
 
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            voicePipeline.startListening({ voiceStatus = it }) { transcript ->
+                if (!busy) {
+                    voiceReplyPending = true
+                    input = transcript
+                    send(transcript)
+                } else {
+                    voiceStatus = "ASSISTANT BUSY"
+                }
+            }
+        } else {
+            voiceStatus = "MICROPHONE PERMISSION DENIED"
+        }
+    }
+
+    fun toggleVoice() {
+        if (voiceStatus == "LISTENING") {
+            voicePipeline.stopListening()
+            voiceStatus = "TRANSCRIBING"
+        } else if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            voicePipeline.startListening({ voiceStatus = it }) { transcript ->
+                if (!busy) {
+                    voiceReplyPending = true
+                    input = transcript
+                    send(transcript)
+                } else {
+                    voiceStatus = "ASSISTANT BUSY"
+                }
+            }
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    LaunchedEffect(state.lastOutput, state.lastError, voiceReplyPending) {
+        if (voiceReplyPending && !state.lastError.isNullOrBlank()) {
+            voiceReplyPending = false
+            voiceStatus = "REQUEST FAILED"
+        } else if (voiceReplyPending && !state.lastOutput.isNullOrBlank()) {
+            voiceReplyPending = false
+            voicePipeline.speak(state.lastOutput.orEmpty()) { voiceStatus = it }
+        }
+    }
+
     Box(
         Modifier.fillMaxSize().background(
             Brush.linearGradient(
                 listOf(
-                    Color(0xFF04101B), Color(0xFF071B2A), Color(0xFF0A2433),
-                    visual.accent.copy(alpha = 0.16f), Color(0xFF06121E)
+                    Color(0xFF100D23), Color(0xFF21152F), Color(0xFF351D3C),
+                    visual.accent.copy(alpha = 0.12f), Color(0xFF100D23)
                 )
             )
         )
     ) {
+        ViceCityAtmosphere(Modifier.matchParentSize())
         Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("T.R.E.V.O.R", color = Color(0xFFE8FAFF), fontSize = 24.sp, fontWeight = FontWeight.Black)
-                        Spacer(Modifier.width(8.dp))
+                        Text("T.R.E.V.O.R", color = Color(0xFFFFF0F7), fontSize = 24.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.width(6.dp))
+                        Surface(color = Color(0xFFFF76B8).copy(alpha = 0.16f), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFFF76B8).copy(alpha = 0.55f))) {
+                            Text("VI", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = Color(0xFFFFB86B), fontSize = 13.sp, fontWeight = FontWeight.Black)
+                        }
+                        Spacer(Modifier.width(6.dp))
                         StatusPill(visual.title, visual.accent)
                     }
                     Text(TrevorIdentity.FULL_NAME + " • Made by " + TrevorIdentity.CREATORS, color = Color(0xFF9FC4D0), fontSize = 10.sp)
@@ -221,10 +281,26 @@ private fun TrevorDashboard(
 
             Spacer(Modifier.height(9.dp))
             if (attachment != null) AttachmentChip(attachment, onRemoveFile, visual.accent)
-            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.GraphicEq, contentDescription = "Voice status", tint = if (voiceStatus.contains("ERROR") || voiceStatus.contains("DENIED")) Color(0xFFFF8D9D) else Color(0xFFFF76B8), modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(voiceStatus, color = Color(0xFFE7B9D3), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                if (voiceStatus == "SPEAKING") Text("TREVOR SPEAKING", color = Color(0xFF72F0D1), fontSize = 8.sp)
+            }
+            Spacer(Modifier.height(5.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 SmallActionButton(Icons.Filled.AttachFile, "Attach", visual.accent, onPickFile, !busy)
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(5.dp))
+                FilledIconButton(
+                    onClick = ::toggleVoice,
+                    enabled = !busy || voiceStatus == "LISTENING",
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = if (voiceStatus == "LISTENING") Color(0xFFFF547F) else Color(0xFFFF76B8),
+                        contentColor = Color(0xFF211025)
+                    )
+                ) { Icon(if (voiceStatus == "LISTENING") Icons.Filled.StopCircle else Icons.Filled.Mic, contentDescription = "Voice input") }
+                Spacer(Modifier.width(5.dp))
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -252,6 +328,50 @@ private fun TrevorDashboard(
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = visual.accent, contentColor = Color(0xFF031018))
                 ) { Icon(Icons.AutoMirrored.Filled.Send, "Send") }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun ViceCityAtmosphere(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF3A1E48).copy(alpha = 0.38f), Color(0xFFEF719F).copy(alpha = 0.10f), Color(0xFF10152C).copy(alpha = 0.22f)),
+                startY = 0f,
+                endY = h
+            ),
+            size = size
+        )
+        drawCircle(Color(0xFFFFB86B).copy(alpha = 0.13f), radius = w * 0.20f, center = Offset(w * 0.82f, h * 0.13f))
+        drawCircle(Color(0xFFFFD0A1).copy(alpha = 0.12f), radius = w * 0.115f, center = Offset(w * 0.82f, h * 0.13f))
+        val horizon = h * 0.54f
+        drawRect(Color(0xFF6D3A70).copy(alpha = 0.13f), topLeft = Offset(0f, horizon), size = Size(w, h * 0.17f))
+        drawRect(Color(0xFF101C35).copy(alpha = 0.32f), topLeft = Offset(0f, h * 0.63f), size = Size(w, h * 0.37f))
+        for (i in 0..8) {
+            val y = h * (0.66f + i * 0.035f)
+            drawLine(Color(0xFFFF8FC1).copy(alpha = 0.07f), Offset(w * 0.05f, y), Offset(w * 0.95f, y), strokeWidth = 1f)
+        }
+        // Distant coastal road perspective and understated car silhouettes.
+        drawLine(Color(0xFFFF83B7).copy(alpha = 0.16f), Offset(w * 0.42f, h), Offset(w * 0.49f, h * 0.65f), strokeWidth = 2f)
+        drawLine(Color(0xFFFF83B7).copy(alpha = 0.16f), Offset(w * 0.58f, h), Offset(w * 0.51f, h * 0.65f), strokeWidth = 2f)
+        drawLine(Color(0xFFFFD18E).copy(alpha = 0.15f), Offset(w * 0.50f, h * 0.98f), Offset(w * 0.50f, h * 0.84f), strokeWidth = 2f)
+        drawRoundRect(Color(0xFF130F25).copy(alpha = 0.48f), Offset(w * 0.13f, h * 0.77f), Size(w * 0.13f, h * 0.035f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
+        drawRoundRect(Color(0xFFFF76B8).copy(alpha = 0.17f), Offset(w * 0.15f, h * 0.765f), Size(w * 0.09f, h * 0.012f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f))
+        drawRoundRect(Color(0xFF100D23).copy(alpha = 0.42f), Offset(w * 0.74f, h * 0.83f), Size(w * 0.11f, h * 0.03f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
+        drawRoundRect(Color(0xFF9D8CFF).copy(alpha = 0.18f), Offset(w * 0.76f, h * 0.825f), Size(w * 0.07f, h * 0.01f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+        // Palm silhouettes at the edges; kept intentionally faint behind the controls.
+        val palmColor = Color(0xFF080D1B).copy(alpha = 0.42f)
+        drawLine(palmColor, Offset(w * 0.07f, h * 0.65f), Offset(w * 0.09f, h * 0.44f), strokeWidth = w * 0.009f)
+        for (i in -2..2) {
+            drawLine(palmColor, Offset(w * 0.09f, h * 0.45f), Offset(w * (0.09f + i * 0.035f), h * (0.42f + kotlin.math.abs(i) * 0.018f)), strokeWidth = w * 0.006f)
+        }
+        drawLine(palmColor, Offset(w * 0.92f, h * 0.66f), Offset(w * 0.90f, h * 0.46f), strokeWidth = w * 0.009f)
+        for (i in -2..2) {
+            drawLine(palmColor, Offset(w * 0.90f, h * 0.47f), Offset(w * (0.90f + i * 0.032f), h * (0.44f + kotlin.math.abs(i) * 0.016f)), strokeWidth = w * 0.006f)
         }
     }
 }
