@@ -262,8 +262,13 @@ object TrevorCore {
         }.take(MAX_ENRICHED_CHARS)
 
         val key = SecureApiKeyStore.load(context)
-        val result = if (key.isNullOrBlank()) Result.failure<String>(IllegalStateException("Gemini API key is not configured."))
-        else GeminiAiProvider.ask(
+        if (key.isNullOrBlank()) {
+            return TrevorCoreResult.Error(
+                "Gemini API key is missing. Add it in Settings → API Key to use cloud AI. " +
+                    "Offline tools and installed-app launching still work without a key."
+            )
+        }
+        val result = GeminiAiProvider.ask(
             context = context.applicationContext,
             apiKey = key,
             prompt = enriched,
