@@ -178,7 +178,7 @@ private fun TrevorDashboard(
                         it.copy(
                             requestState = TrevorRequestState.ERROR,
                             orbState = TrevorOrbState.ERROR,
-                            lastOutput = "ERROR\\n" + result.message,
+                            lastOutput = "ERROR\n" + result.message,
                             lastError = result.message
                         )
                     }
@@ -204,7 +204,7 @@ private fun TrevorDashboard(
                         requestState = TrevorRequestState.ERROR,
                         orbState = TrevorOrbState.ERROR,
                         aiState = TrevorAiState.ERROR,
-                        lastOutput = "ERROR\\n" + message,
+                        lastOutput = "ERROR\n" + message,
                         lastError = message
                     )
                 }
