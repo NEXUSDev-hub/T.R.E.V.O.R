@@ -831,7 +831,25 @@ private fun TrevorPersonalityMenu(settings: TrevorSettings, onChange: (TrevorSet
                 Text(settings.personality.description, color = Color(0xFF83AAB7), fontSize = 10.sp)
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            // Every app-owned popup should offer an obvious, explicit close action.
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Choose personality", fontWeight = FontWeight.Bold)
+                        Icon(Icons.Filled.Close, contentDescription = "Close personality menu")
+                    }
+                },
+                onClick = { expanded = false }
+            )
+            HorizontalDivider()
             TrevorPersonality.entries.forEach { p ->
                 DropdownMenuItem(
                     text = { Text(p.label) },
