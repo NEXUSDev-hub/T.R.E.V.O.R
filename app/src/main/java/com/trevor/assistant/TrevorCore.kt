@@ -36,7 +36,37 @@ object TrevorCore {
             prefs.edit().putString("conversation_id", it).apply()
         }
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
+
+        suspend fun complete(result: TrevorCoreResult, source: String = "LOCAL"): TrevorCoreResult {
+            val content = when (result) {
+                is TrevorCoreResult.Answer -> result.text
+                is TrevorCoreResult.Error -> result.message
+            }
+            TrevorPersistentMemory.saveMessage(
+                context,
+                conversationId,
+                "assistant",
+                content,
+                if (result is TrevorCoreResult.Error) "ERROR" else source
+            )
+            return finish(result)
+        }
+
         val aiTaskId = UUID.randomUUID().toString()
+
+        // Deterministic Android actions run before semantic cloud classification.
+        // Opening an installed app or system settings must work without Gemini,
+        // an API key, or network access.
+        TrevorAndroidActions.tryDispatch(context, clean)?.let { action ->
+            val result = if (action.dispatched) TrevorCoreResult.Answer(action.detail)
+                else TrevorCoreResult.Error(action.detail)
+            return complete(result)
+        }
+        TrevorAndroidActions.tryLaunchApp(context, clean)?.let { action ->
+            val result = if (action.dispatched) TrevorCoreResult.Answer(action.detail)
+                else TrevorCoreResult.Error(action.detail)
+            return complete(result)
+        }
 
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
         val learningEnabled = TrevorSettingsStore.load(context).usageIntelligenceEnabled
@@ -55,11 +85,11 @@ object TrevorCore {
         }
 
         if (learningEnabled && smartIntent.kind == TrevorSmartCore.IntentKind.ROUTINE) {
-            return finish(TrevorCoreResult.Answer(TrevorRoutineDiscovery.summary(context)))
+            return complete(TrevorCoreResult.Answer(TrevorRoutineDiscovery.summary(context)))
         }
 
         if (learningEnabled && smartIntent.kind == TrevorSmartCore.IntentKind.USAGE) {
-            return finish(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
+            return complete(TrevorCoreResult.Answer(TrevorUsageIntelligence.summary(context)))
         }
 
         val resolvedMode = explicitlySelectedMode ?: smartIntent.suggestedMode
@@ -85,9 +115,9 @@ object TrevorCore {
             val automationResult = withContext(Dispatchers.IO) {
                 TrevorAutomationEngine.execute(context, automation)
             }
-            return finish(TrevorCoreResult.Answer(automationResult))
+            return complete(TrevorCoreResult.Answer(automationResult))
         }
-        if (localAnswer != null) return finish(TrevorCoreResult.Answer(localAnswer))
+        if (localAnswer != null) return complete(TrevorCoreResult.Answer(localAnswer))
 
         val remind = Regex("""^remind me in\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours)\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)
         if (remind != null) {
@@ -100,17 +130,14 @@ object TrevorCore {
                 else -> amount * 3_600_000L
             }
             TrevorTaskEngine.schedule(context, title, title, System.currentTimeMillis() + millis)
-            return finish(TrevorCoreResult.Answer("Scheduled locally: $title"))
+            return complete(TrevorCoreResult.Answer("Scheduled locally: $title"))
         }
 
         val remember = Regex("""^remember\s+(.+)$""", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
         if (remember != null) {
             TrevorPersistentMemory.saveLongTermMemory(context, remember)
-            return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
+            return complete(TrevorCoreResult.Answer("Memory saved locally: $remember"))
         }
-
-        val androidAction = TrevorAndroidActions.tryDispatch(context, clean)
-        if (androidAction != null) return finish(TrevorCoreResult.Answer(androidAction.detail))
 
         if (resolvedMode == TrevorMode.PROJECT) {
             val projectId = prefs.getString("project_id", "default") ?: "default"
@@ -136,8 +163,7 @@ object TrevorCore {
         if (resolvedMode == TrevorMode.TERMINAL) {
             val result = TrevorTerminalService.execute(context, clean, TrevorStateStore.state.value)
             TrevorStateStore.update { it.copy(terminalOutput = if (clean.equals("clear", true)) "" else result) }
-            TrevorPersistentMemory.saveMessage(context, conversationId, "assistant", result, "LOCAL")
-            return finish(TrevorCoreResult.Answer(result))
+            return complete(TrevorCoreResult.Answer(result))
         }
 
         val prompt = buildPrompt(context, clean, resolvedMode, conciseResponses, technicalDetail, attachment, smartIntent)
@@ -158,10 +184,7 @@ object TrevorCore {
             } else aiResult
         }
 
-        if (result is TrevorCoreResult.Answer) {
-            TrevorPersistentMemory.saveMessage(context, conversationId, "assistant", result.text, "TREVOR")
-        }
-        return finish(result)
+        return complete(result, "TREVOR")
     }
 
     private suspend fun requestAi(
@@ -239,8 +262,13 @@ object TrevorCore {
         }.take(MAX_ENRICHED_CHARS)
 
         val key = SecureApiKeyStore.load(context)
-        val result = if (key.isNullOrBlank()) Result.failure<String>(IllegalStateException("Gemini API key is not configured."))
-        else GeminiAiProvider.ask(
+        if (key.isNullOrBlank()) {
+            return TrevorCoreResult.Error(
+                "Gemini API key is missing. Add it in Settings → API Key to use cloud AI. " +
+                    "Offline tools and installed-app launching still work without a key."
+            )
+        }
+        val result = GeminiAiProvider.ask(
             context = context.applicationContext,
             apiKey = key,
             prompt = enriched,

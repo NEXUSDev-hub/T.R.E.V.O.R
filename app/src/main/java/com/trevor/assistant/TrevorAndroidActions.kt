@@ -18,6 +18,69 @@ object TrevorAndroidActions {
         "settings" to Settings.ACTION_SETTINGS
     )
 
+    /**
+     * Launch an installed app from ordinary phrasing such as "open YouTube",
+     * "launch WhatsApp", "start Chrome", or "open app YouTube".
+     * Returns null when the input is not an app-launch command.
+     */
+    fun tryLaunchApp(context: Context, command: String): TrevorAndroidActionResult? {
+        val raw = command.trim()
+        val match = Regex(
+            """^(?:(?:hey\s+)?(?:trevor[, ]+\s*)?|(?:can|could|would)\s+you\s+(?:please\s+)?|please\s+)?(?:please\s+)?(?:open|launch|start)\s+(?:the\s+)?(.+?)(?:\s+please)?[.!?]*$""",
+            RegexOption.IGNORE_CASE
+        ).find(raw) ?: return null
+        var requested = match.groupValues[1].trim()
+        requested = requested.replace(Regex("""^app\s+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s+app$""", RegexOption.IGNORE_CASE), "")
+            .trim()
+        if (requested.isBlank()) return null
+
+        // Keep system settings on the dedicated action path.
+        if (requested.lowercase() in setOf("settings", "wifi settings", "wi-fi settings",
+                "bluetooth settings", "display settings", "sound settings",
+                "battery settings", "battery saver settings", "notification settings",
+                "app settings")) return null
+
+        val packageManager = context.packageManager
+        val launchIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val installed = runCatching {
+            @Suppress("DEPRECATION")
+            packageManager.queryIntentActivities(launchIntent, 0)
+        }.getOrDefault(emptyList())
+
+        val target = installed.firstOrNull {
+            it.loadLabel(packageManager).toString().equals(requested, ignoreCase = true)
+        } ?: installed.firstOrNull {
+            it.loadLabel(packageManager).toString().equals(
+                requested.removeSuffix(" app").trim(), ignoreCase = true
+            )
+        }
+
+        if (target == null) {
+            return TrevorAndroidActionResult(
+                "open_app", false, false,
+                "I couldn't find a launchable installed app named '$requested'. Check the app name or install it first."
+            )
+        }
+
+        val label = target.loadLabel(packageManager).toString()
+        val intent = packageManager.getLaunchIntentForPackage(target.activityInfo.packageName)
+            ?: return TrevorAndroidActionResult(
+                "open_app", false, false,
+                "'$label' is installed but Android did not provide a launch activity."
+            )
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching {
+            context.startActivity(intent)
+            TrevorAndroidActionResult("open_app", true, false, "Opening $label.")
+        }.getOrElse {
+            TrevorAndroidActionResult(
+                "open_app", false, false,
+                "Android couldn't open $label. Check whether the app is disabled or restricted."
+            )
+        }
+    }
+
     fun tryDispatch(context: Context, command: String): TrevorAndroidActionResult? {
         val normalized = command.trim().lowercase()
         val key = when {
