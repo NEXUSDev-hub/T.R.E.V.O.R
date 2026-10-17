@@ -65,10 +65,7 @@ object TrevorCore {
         TrevorAndroidActions.tryLaunchApp(context, clean)?.let { action ->
             val result = if (action.dispatched) TrevorCoreResult.Answer(action.detail)
                 else TrevorCoreResult.Error(action.detail)
-            if (result is TrevorCoreResult.Answer) {
-                TrevorPersistentMemory.saveMessage(context, conversationId, "assistant", result.text, "LOCAL")
-            }
-            return finish(result)
+            return complete(result)
         }
 
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
