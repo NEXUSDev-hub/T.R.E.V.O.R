@@ -38,6 +38,26 @@ object TrevorCore {
         TrevorPersistentMemory.saveMessage(context, conversationId, "user", clean, null)
         val aiTaskId = UUID.randomUUID().toString()
 
+        // Deterministic Android actions run before semantic cloud classification.
+        // Opening an installed app or system settings must work without Gemini,
+        // an API key, or network access.
+        TrevorAndroidActions.tryDispatch(context, clean)?.let { action ->
+            val result = if (action.dispatched) TrevorCoreResult.Answer(action.detail)
+                else TrevorCoreResult.Error(action.detail)
+            if (result is TrevorCoreResult.Answer) {
+                TrevorPersistentMemory.saveMessage(context, conversationId, "assistant", result.text, "LOCAL")
+            }
+            return finish(result)
+        }
+        TrevorAndroidActions.tryLaunchApp(context, clean)?.let { action ->
+            val result = if (action.dispatched) TrevorCoreResult.Answer(action.detail)
+                else TrevorCoreResult.Error(action.detail)
+            if (result is TrevorCoreResult.Answer) {
+                TrevorPersistentMemory.saveMessage(context, conversationId, "assistant", result.text, "LOCAL")
+            }
+            return finish(result)
+        }
+
         val localAnswer = TrevorLocalIntelligence.answer(context, clean)
         val learningEnabled = TrevorSettingsStore.load(context).usageIntelligenceEnabled
         val explicitlySelectedMode = mode
@@ -108,9 +128,6 @@ object TrevorCore {
             TrevorPersistentMemory.saveLongTermMemory(context, remember)
             return finish(TrevorCoreResult.Answer("Memory saved locally: $remember"))
         }
-
-        val androidAction = TrevorAndroidActions.tryDispatch(context, clean)
-        if (androidAction != null) return finish(TrevorCoreResult.Answer(androidAction.detail))
 
         if (resolvedMode == TrevorMode.PROJECT) {
             val projectId = prefs.getString("project_id", "default") ?: "default"
