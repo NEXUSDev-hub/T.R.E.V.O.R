@@ -26,12 +26,12 @@ object TrevorAndroidActions {
     fun tryLaunchApp(context: Context, command: String): TrevorAndroidActionResult? {
         val raw = command.trim()
         val match = Regex(
-            """^(?:please\\s+)?(?:open|launch|start)\\s+(?:the\\s+)?(.+?)[.!?]*$""",
+            """^(?:please\s+)?(?:open|launch|start)\s+(?:the\s+)?(.+?)[.!?]*$""",
             RegexOption.IGNORE_CASE
         ).find(raw) ?: return null
         var requested = match.groupValues[1].trim()
-        requested = requested.replace(Regex("""^app\\s+""", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("""\\s+app$""", RegexOption.IGNORE_CASE), "")
+        requested = requested.replace(Regex("""^app\s+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s+app$""", RegexOption.IGNORE_CASE), "")
             .trim()
         if (requested.isBlank()) return null
 
