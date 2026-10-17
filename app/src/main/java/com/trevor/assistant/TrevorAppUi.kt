@@ -323,7 +323,7 @@ private fun TrevorDashboard(
                 )
                 Spacer(Modifier.width(7.dp))
                 FilledIconButton(
-                    onClick = ::send,
+                    onClick = { send() },
                     enabled = !busy && input.isNotBlank(),
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = visual.accent, contentColor = Color(0xFF031018))
                 ) { Icon(Icons.AutoMirrored.Filled.Send, "Send") }
