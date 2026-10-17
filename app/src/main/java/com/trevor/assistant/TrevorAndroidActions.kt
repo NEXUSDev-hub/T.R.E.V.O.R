@@ -26,7 +26,7 @@ object TrevorAndroidActions {
     fun tryLaunchApp(context: Context, command: String): TrevorAndroidActionResult? {
         val raw = command.trim()
         val match = Regex(
-            """^(?:please\s+)?(?:open|launch|start)\s+(?:the\s+)?(.+?)[.!?]*$""",
+            """^(?:(?:hey\s+)?(?:trevor[, ]+\s*)?|(?:can|could|would)\s+you\s+(?:please\s+)?|please\s+)?(?:please\s+)?(?:open|launch|start)\s+(?:the\s+)?(.+?)(?:\s+please)?[.!?]*$""",
             RegexOption.IGNORE_CASE
         ).find(raw) ?: return null
         var requested = match.groupValues[1].trim()
