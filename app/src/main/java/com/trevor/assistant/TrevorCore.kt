@@ -187,6 +187,25 @@ object TrevorCore {
         return complete(result, "TREVOR")
     }
 
+    /**
+     * Persist a dashboard-level failure that escaped process().
+     * The user message is already stored when process() reached its normal entry path.
+     */
+    suspend fun recordUiFailure(context: Context, message: String) {
+        val prefs = context.getSharedPreferences("trevor_runtime", Context.MODE_PRIVATE)
+        val conversationId = prefs.getString("conversation_id", null)
+            ?: UUID.randomUUID().toString().also {
+                prefs.edit().putString("conversation_id", it).apply()
+            }
+        TrevorPersistentMemory.saveMessage(
+            context,
+            conversationId,
+            "assistant",
+            message,
+            "ERROR"
+        )
+    }
+
     private suspend fun requestAi(
         context: Context,
         taskId: String,
