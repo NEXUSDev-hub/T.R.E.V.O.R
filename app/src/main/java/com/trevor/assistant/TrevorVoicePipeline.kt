@@ -58,43 +58,63 @@ class TrevorVoicePipeline(context: Context) {
             return
         }
 
+        // Tear down any previous session before creating another recognizer.
+        runCatching { recognizer?.cancel() }
         runCatching { recognizer?.destroy() }
-        recognizer = SpeechRecognizer.createSpeechRecognizer(appContext).also { speech ->
-            speech.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) = onState("LISTENING")
-                override fun onBeginningOfSpeech() = onState("LISTENING")
-                override fun onRmsChanged(rmsdB: Float) = Unit
-                override fun onBufferReceived(buffer: ByteArray?) = Unit
-                override fun onEndOfSpeech() = onState("TRANSCRIBING")
-                override fun onError(error: Int) {
-                    onState(
-                        when (error) {
-                            SpeechRecognizer.ERROR_NO_MATCH -> "NO SPEECH RECOGNISED"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "NO SPEECH DETECTED"
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "MICROPHONE PERMISSION REQUIRED"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "VOICE SERVICE BUSY"
-                            else -> "VOICE INPUT ERROR ($error)"
-                        }
-                    )
-                }
+        recognizer = null
 
-                override fun onResults(results: Bundle?) {
-                    val transcript = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()
-                        ?.trim()
-                    if (!transcript.isNullOrBlank()) {
-                        onState("TRANSCRIPT READY")
-                        onResult(transcript)
-                    } else {
-                        onState("NO SPEECH RECOGNISED")
-                    }
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) = Unit
-                override fun onEvent(eventType: Int, params: Bundle?) = Unit
-            })
+        val speech = runCatching {
+            SpeechRecognizer.createSpeechRecognizer(appContext)
+        }.getOrElse {
+            onState("COULD NOT CREATE VOICE INPUT")
+            return
         }
+        recognizer = speech
+        speech.setRecognitionListener(object : RecognitionListener {
+            private fun isCurrentSession(): Boolean = recognizer === speech
+
+            override fun onReadyForSpeech(params: Bundle?) {
+                if (isCurrentSession()) onState("LISTENING")
+            }
+            override fun onBeginningOfSpeech() {
+                if (isCurrentSession()) onState("LISTENING")
+            }
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() {
+                if (isCurrentSession()) onState("TRANSCRIBING")
+            }
+            override fun onError(error: Int) {
+                if (!isCurrentSession()) return
+                onState(
+                    when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH -> "NO SPEECH RECOGNISED"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "NO SPEECH DETECTED"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "MICROPHONE PERMISSION REQUIRED"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "VOICE SERVICE BUSY"
+                        SpeechRecognizer.ERROR_CLIENT -> "VOICE INPUT STOPPED"
+                        else -> "VOICE INPUT ERROR ($error)"
+                    }
+                )
+            }
+
+            override fun onResults(results: Bundle?) {
+                if (!isCurrentSession()) return
+                val transcript = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                    ?.trim()
+                if (!transcript.isNullOrBlank()) {
+                    onState("TRANSCRIPT READY")
+                    onResult(transcript)
+                } else {
+                    onState("NO SPEECH RECOGNISED")
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) = Unit
+            override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        })
 
         val request = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -102,13 +122,21 @@ class TrevorVoicePipeline(context: Context) {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
-        runCatching { recognizer?.startListening(request) }
-            .onFailure { onState("COULD NOT START VOICE INPUT") }
-        onState("LISTENING")
+        onState("STARTING VOICE INPUT")
+        runCatching { speech.startListening(request) }
+            .onFailure {
+                if (recognizer === speech) {
+                    runCatching { speech.destroy() }
+                    recognizer = null
+                }
+                onState("COULD NOT START VOICE INPUT")
+            }
     }
 
     fun stopListening() {
-        runCatching { recognizer?.stopListening() }
+        val speech = recognizer ?: return
+        runCatching { speech.stopListening() }
+            .onFailure { onSpeechState?.invoke("COULD NOT STOP VOICE INPUT") }
     }
 
     fun speak(text: String, onState: (String) -> Unit) {
@@ -132,6 +160,7 @@ class TrevorVoicePipeline(context: Context) {
         runCatching { tts?.stop() }
         runCatching { tts?.shutdown() }
         tts = null
+        ttsReady = false
         onSpeechState = null
     }
 }
