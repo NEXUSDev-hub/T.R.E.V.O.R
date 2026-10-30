@@ -4,9 +4,9 @@ import android.content.Context
 import androidx.compose.ui.graphics.Color
 
 enum class TrevorAccent(val label: String, val color: Color) {
-    ICE("Ice Cyan", Color(0xFF58D9FF)),
-    SKY("Polar Sky", Color(0xFF5B8CFF)),
-    VIOLET("Aurora Violet", Color(0xFF9B7BFF));
+    ICE("Vice Pink", Color(0xFFFF76B8)),
+    SKY("Sunset Blue", Color(0xFF8F9CFF)),
+    VIOLET("Neon Violet", Color(0xFF9B7BFF));
     companion object { fun from(value: String): TrevorAccent = entries.firstOrNull { it.name == value } ?: ICE }
 }
 
