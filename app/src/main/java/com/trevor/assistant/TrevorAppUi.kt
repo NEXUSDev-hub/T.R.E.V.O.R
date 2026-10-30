@@ -184,6 +184,14 @@ private fun TrevorDashboard(
                     }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                // Cancellation also needs a durable assistant-side history entry.
+                try {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                        TrevorCore.recordUiFailure(context, "Request cancelled.")
+                    }
+                } catch (_: Exception) {
+                    // Preserve cancellation even if history storage itself is unavailable.
+                }
                 TrevorStateStore.update {
                     it.copy(
                         requestState = TrevorRequestState.ERROR,
@@ -199,12 +207,17 @@ private fun TrevorDashboard(
                     error.message.orEmpty().contains("timeout", ignoreCase = true) -> "The request timed out. Check your connection and try again."
                     else -> "T.R.E.V.O.R. couldn't complete that request: " + error.message.orEmpty().take(240)
                 }
+                try {
+                    TrevorCore.recordUiFailure(context, message)
+                } catch (_: Exception) {
+                    // The visible error still reaches the user if local history is unavailable.
+                }
                 TrevorStateStore.update {
                     it.copy(
                         requestState = TrevorRequestState.ERROR,
                         orbState = TrevorOrbState.ERROR,
                         aiState = TrevorAiState.ERROR,
-                        lastOutput = "ERROR\n" + message,
+                        lastOutput = "ERROR\\n" + message,
                         lastError = message
                     )
                 }
